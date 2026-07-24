@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import { BookModel } from "../models/movie.model";
-import { OrderRepository } from "../repositories/order.repository";
-import { CreateOrderDTO, UpdateOrderStatusDTO } from "../dtos/order.dto";
+import { OrderRepository } from "../repositories/booking.repository";
+import { CreateOrderDTO, UpdateOrderStatusDTO } from "../dtos/booking.dto";
 
 export class OrderService {
   constructor(private repo = new OrderRepository()) {}

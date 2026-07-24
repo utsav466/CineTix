@@ -9,8 +9,8 @@ import adminUserRoutes from "./routes/admin.user.routes";
 import { PORT } from "./config";
 
 import bookRoutes from "./routes/movie.route";
-import adminBookRoutes from "./routes/admin.book.routes";
-import orderRoutes from "./routes/order.route";
+import adminBookRoutes from "./routes/admin.movie.routes";
+import orderRoutes from "./routes/booking.route";
 import adminOrderRoutes from "./routes/admin.order.routes";
 import adminDashboardRoutes from "./routes/admin.dashboard.routes";
 
