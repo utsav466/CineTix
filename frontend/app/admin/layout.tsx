@@ -1,6 +1,6 @@
-import Sidebar from "./_components/Sidebar";
+import Sidebar from "./_components/AdminSidebar";
 import Topbar from "./_components/Topbar";
-import { AdminUIProvider } from "./context/AdminUIContext";
+import { AdminUIProvider } from "./context/AdminContext";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (

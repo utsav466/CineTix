@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import React, { useEffect, useMemo, useState } from "react";
-import { useAdminUI } from "../context/AdminUIContext";
+import { useAdminUI } from "../context/AdminContext";
 import { money } from "../../../lib/money";
 
 type OrderStatus = "Pending" | "Processing" | "Shipped" | "Delivered" | "Cancelled";

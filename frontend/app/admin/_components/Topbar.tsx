@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useAdminUI } from "../context/AdminUIContext";
+import { useAdminUI } from "../context/AdminContext";
 
 type CurrentUser = {
   _id: string;

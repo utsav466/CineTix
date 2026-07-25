@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { useAdminUI } from "../context/AdminUIContext";
+import { useAdminUI } from "../context/AdminContext";
 
 type ReportRange = "7d" | "30d" | "90d";
 

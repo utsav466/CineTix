@@ -1,60 +1,64 @@
-import { BookRepository } from "../repositories/movie.repository";
-import { CreateBookDTO, UpdateBookDTO } from "../dtos/movie.dto";
+import { MovieRepository } from "../repositories/movie.repository";
+import { CreateMovieDTO, UpdateMovieDTO } from "../dtos/movie.dto";
 
-export class BookService {
-  constructor(private repo = new BookRepository()) {}
+export class MovieService {
+  constructor(private repo = new MovieRepository()) {}
 
-  async createBook(dto: CreateBookDTO) {
+  async createMovie(dto: CreateMovieDTO) {
     return this.repo.create(dto as any);
   }
 
-  async getBookById(id: string) {
+  async getMovieById(id: string) {
     return this.repo.findById(id);
   }
 
-  async updateBook(id: string, dto: UpdateBookDTO) {
+  async updateMovie(id: string, dto: UpdateMovieDTO) {
     return this.repo.updateById(id, dto as any);
   }
 
-  async deleteBook(id: string) {
+  async deleteMovie(id: string) {
     return this.repo.deleteById(id);
   }
 
-  async listBooks(params: {
+  async listMovies(params: {
     search?: string;
-    category?: string;
-    status?: "active" | "draft";
+    genre?: string;
+    status?: "now_showing" | "coming_soon";
     page?: number;
     limit?: number;
-    sort?: "newest" | "priceAsc" | "priceDesc";
   }) {
     const page = Math.max(1, Number(params.page || 1));
     const limit = Math.min(50, Math.max(1, Number(params.limit || 10)));
     const skip = (page - 1) * limit;
 
-    const q: any = {};
+    const query: any = {};
 
-    if (params.status) q.status = params.status;
-    if (params.category) q.category = params.category;
+    if (params.status) query.status = params.status;
+
+    if (params.genre) {
+      query.genre = params.genre;
+    }
 
     if (params.search?.trim()) {
-      const s = params.search.trim();
-      q.$or = [
-        { title: { $regex: s, $options: "i" } },
-        { author: { $regex: s, $options: "i" } },
-        { category: { $regex: s, $options: "i" } },
-        { isbn: { $regex: s, $options: "i" } },
+      const search = params.search.trim();
+
+      query.$or = [
+        { title: { $regex: search, $options: "i" } },
+        { director: { $regex: search, $options: "i" } },
+        { genre: { $regex: search, $options: "i" } },
       ];
     }
 
-    const sort =
-      params.sort === "priceAsc"
-        ? { price: 1 }
-        : params.sort === "priceDesc"
-        ? { price: -1 }
-        : { createdAt: -1 };
+    const sort = {
+      createdAt: -1,
+    };
 
-    const { items, total } = await this.repo.list(q, skip, limit, sort);
+    const { items, total } = await this.repo.list(
+      query,
+      skip,
+      limit,
+      sort
+    );
 
     return {
       items,

@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useAdminUI } from "../context/AdminUIContext";
+import { useAdminUI } from "../context/AdminContext";
 import { money } from "../../../lib/money";
 
 
