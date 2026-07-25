@@ -1,56 +1,125 @@
 import { Request, Response } from "express";
 import { UserModel } from "../models/user.model";
-import { BookModel } from "../models/movie.model";
-import { OrderModel } from "../models/booking.model";
+import { MovieModel } from "../models/movie.model";
+import { BookingModel } from "../models/booking.model";
 
-export async function adminDashboardStats(_: Request, res: Response) {
+
+export async function adminDashboardStats(
+  _: Request,
+  res: Response
+): Promise<Response> {
+
   try {
+
     const [
       totalUsers,
-      totalBooks,
-      totalOrders,
+      totalMovies,
+      totalBookings,
       revenueAgg,
-      recentOrders,
-      lowStockBooks,
-    ] = await Promise.all([
-      UserModel.countDocuments(),
-      BookModel.countDocuments(),
-      OrderModel.countDocuments(),
+      recentBookings,
 
-      // ✅ FIX: your model uses totalAmount (not total)
-      OrderModel.aggregate([
-        { $match: { status: { $ne: "Cancelled" } } },
-        { $group: { _id: null, revenue: { $sum: "$totalAmount" } } },
+    ] = await Promise.all([
+
+
+      UserModel.countDocuments(),
+
+
+      MovieModel.countDocuments(),
+
+
+      BookingModel.countDocuments(),
+
+
+
+      BookingModel.aggregate([
+
+        {
+          $match:{
+            paymentStatus:"Paid"
+          }
+        },
+
+        {
+          $group:{
+            _id:null,
+
+            revenue:{
+              $sum:"$totalAmount"
+            }
+
+          }
+        }
+
       ]),
 
-      OrderModel.find()
-        .sort({ createdAt: -1 })
-        .limit(5)
-        .select("_id status totalAmount createdAt customerName customerEmail"),
 
-      BookModel.find({ stock: { $lte: 5 } })
-        .sort({ stock: 1 })
-        .limit(5)
-        .select("_id title stock price"),
+
+
+      BookingModel.find()
+
+      .populate("movieId")
+
+      .populate("userId")
+
+      .sort({
+        createdAt:-1
+      })
+
+      .limit(5)
+
+
+
     ]);
 
-    const totalRevenue = revenueAgg?.[0]?.revenue ?? 0;
+
+
 
     return res.status(200).json({
-      success: true,
-      data: {
+
+      success:true,
+
+      data:{
+
+
         totalUsers,
-        totalBooks,
-        totalOrders,
-        totalRevenue,
-        recentOrders,
-        lowStockBooks,
-      },
+
+
+        totalMovies,
+
+
+        totalBookings,
+
+
+        totalRevenue:
+          revenueAgg[0]?.revenue ?? 0,
+
+
+
+        recentBookings
+
+
+
+      }
+
     });
-  } catch (err: any) {
+
+
+
+  } catch(error:any){
+
+
     return res.status(500).json({
-      success: false,
-      message: err?.message || "Failed to load dashboard stats",
+
+      success:false,
+
+      message:
+        error.message ||
+        "Failed to load dashboard"
+
+
     });
+
+
   }
+
 }

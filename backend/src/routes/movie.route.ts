@@ -1,10 +1,12 @@
-// backend/src/routes/book.route.ts
 import { Router } from "express";
-import { getPublicBook, listPublicBooks } from "../controllers/movie.controller";
+import {
+  getPublicMovie,
+  listPublicMovies,
+} from "../controllers/movie.controller";
 
 const router = Router();
 
-router.get("/", listPublicBooks);
-router.get("/:id", getPublicBook);
+router.get("/", listPublicMovies);
+router.get("/:id", getPublicMovie);
 
 export default router;

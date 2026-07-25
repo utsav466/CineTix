@@ -1,22 +1,23 @@
 import { Router } from "express";
 import { requireAuth } from "../middlewares/auth.middlewares";
 import { requireAdmin } from "../middlewares/admin.middleware";
+
 import {
-  adminCreateBook,
-  adminDeleteBook,
-  adminGetBook,
-  adminListBooks,
-  adminUpdateBook,
+  adminCreateMovie,
+  adminDeleteMovie,
+  adminGetMovie,
+  adminListMovies,
+  adminUpdateMovie,
 } from "../controllers/movie.controller";
 
 const router = Router();
 
 router.use(requireAuth, requireAdmin);
 
-router.get("/", adminListBooks);
-router.post("/", adminCreateBook);
-router.get("/:id", adminGetBook);
-router.patch("/:id", adminUpdateBook);
-router.delete("/:id", adminDeleteBook);
+router.get("/", adminListMovies);
+router.post("/", adminCreateMovie);
+router.get("/:id", adminGetMovie);
+router.patch("/:id", adminUpdateMovie);
+router.delete("/:id", adminDeleteMovie);
 
 export default router;

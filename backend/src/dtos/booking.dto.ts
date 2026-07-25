@@ -1,14 +1,64 @@
-import { PaymentMethod } from "../models/booking.model";
+import {
+  PaymentMethod
+} from "../models/booking.model";
 
-export type CreateOrderDTO = {
-  items: { bookId: string; qty: number }[];
-  address: string;
-  phone?: string;
-  paymentMethod?: PaymentMethod;
+
+
+export type CreateBookingDTO = {
+
+
+  movieId:string;
+
+
+  showtimeId:string;
+
+
+  seats:string[];
+
+
+  foods?:{
+
+    name:string;
+
+    quantity:number;
+
+    price:number;
+
+  }[];
+
+
+
+  totalAmount:number;
+
+
+
+  paymentMethod?:PaymentMethod;
+
+
 };
 
-export type UpdateOrderStatusDTO = {
-  status: "Pending" | "Processing" | "Shipped" | "Delivered" | "Cancelled";
-  paid?: boolean;
-  txnId?: string;
+
+
+
+
+export type UpdateBookingStatusDTO = {
+
+
+  status:
+    | "Pending"
+    | "Confirmed"
+    | "Cancelled";
+
+
+
+  paymentStatus?:
+    | "Pending"
+    | "Paid"
+    | "Failed";
+
+
+
+  paymentRef?:string;
+
+
 };

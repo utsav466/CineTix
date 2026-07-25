@@ -1,21 +1,20 @@
 import { Router } from "express";
 import { requireAuth } from "../middlewares/auth.middlewares";
+
 import {
-  createOrder,
-  myOrderDetail,
-  myOrders,
-  cancelMyOrder,
+  createBooking,
+  myBookings,
+  bookingDetail,
+  cancelBooking,
 } from "../controllers/booking.controller";
 
 const router = Router();
 
 router.use(requireAuth);
 
-router.post("/", createOrder);
-router.get("/me", myOrders);
-router.get("/:id", myOrderDetail);
-
-// ✅ cancel (demo)
-router.patch("/:id/cancel", cancelMyOrder);
+router.post("/", createBooking);
+router.get("/me", myBookings);
+router.get("/:id", bookingDetail);
+router.patch("/:id/cancel", cancelBooking);
 
 export default router;

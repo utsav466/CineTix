@@ -1,217 +1,367 @@
 import { Request, Response } from "express";
 import mongoose from "mongoose";
-import { AuthRequest } from "../middlewares/auth.middlewares";
-import { OrderModel, OrderStatus } from "../models/booking.model";
+import { BookingModel, BookingStatus } from "../models/booking.model";
+import { BookingService } from "../services/booking.service";
 
-const ADMIN_STATUSES: OrderStatus[] = [
-  "Pending",
-  "Processing",
-  "Shipped",
-  "Delivered",
-  "Cancelled",
-];
+const bookingService = new BookingService();
+
 
 // =========================
-// USER: CREATE ORDER
-// POST /api/orders
-// body: { customerName, customerEmail, items, paymentMethod, shippingAmount }
+// USER - CREATE BOOKING
 // =========================
-export async function createOrder(req: AuthRequest, res: Response) {
+export async function createBooking(
+  req: Request,
+  res: Response
+) {
   try {
-    const userId = req.userId;
-    if (!userId) {
-      return res.status(401).json({ success: false, message: "Authentication required" });
-    }
 
-    const { customerName, customerEmail, items, paymentMethod, shippingAmount } = req.body;
+    const userId = (req as any).user.id;
 
-    const pm: "COD" | "ESEWA" = paymentMethod === "ESEWA" ? "ESEWA" : "COD";
-    const ship = Math.max(0, Number(shippingAmount ?? 0));
+    const booking = await bookingService.createBooking(
+      userId,
+      req.body
+    );
 
-    if (!customerName?.trim()) {
-      return res.status(400).json({ success: false, message: "customerName is required" });
-    }
-
-    if (!Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({ success: false, message: "items is required" });
-    }
-
-    const normalizedItems = items.map((it: any) => ({
-      bookId: it.bookId ? new mongoose.Types.ObjectId(it.bookId) : undefined,
-      title: String(it.title ?? "").trim(),
-      price: Number(it.price ?? 0),
-      qty: Number(it.qty ?? 1),
-    }));
-
-    if (
-      normalizedItems.some(
-        (it) =>
-          !it.title ||
-          !Number.isFinite(it.price) ||
-          it.price < 0 ||
-          !Number.isFinite(it.qty) ||
-          it.qty < 1
-      )
-    ) {
-      return res.status(400).json({ success: false, message: "Invalid items format" });
-    }
-
-    const itemsTotal = normalizedItems.reduce((sum, it) => sum + it.price * it.qty, 0);
-    const totalAmount = itemsTotal + ship;
-
-    const order = await OrderModel.create({
-      userId: new mongoose.Types.ObjectId(userId),
-      customerName: customerName.trim(),
-      customerEmail: customerEmail?.trim() ?? "",
-      items: normalizedItems,
-      shippingAmount: ship,
-      totalAmount,
-      status: "Pending",
-      paymentMethod: pm,
-      paymentStatus: pm === "COD" ? "Unpaid" : "Pending",
-      paymentRef: "",
+    return res.status(201).json({
+      success: true,
+      booking,
     });
 
-    return res.status(201).json({ success: true, message: "Order created", data: order });
-  } catch (err: any) {
-    return res.status(500).json({ success: false, message: err?.message || "Internal Server Error" });
+  } catch (error: any) {
+
+    return res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+
   }
 }
 
-// =========================
-// USER: MY ORDERS
-// GET /api/orders/me
-// =========================
-export async function myOrders(req: AuthRequest, res: Response) {
-  try {
-    const userId = req.userId;
-    if (!userId) return res.status(401).json({ success: false, message: "Authentication required" });
 
-    const orders = await OrderModel.find({ userId }).sort({ createdAt: -1 });
-    return res.status(200).json({ success: true, data: orders });
-  } catch (err: any) {
-    return res.status(500).json({ success: false, message: err?.message || "Internal Server Error" });
+// =========================
+// USER - MY BOOKINGS
+// =========================
+export async function myBookings(
+  req: Request,
+  res: Response
+) {
+
+  try {
+
+    const userId = (req as any).user.id;
+
+    const bookings =
+      await bookingService.myBookings(userId);
+
+
+    return res.json({
+      success: true,
+      bookings,
+    });
+
+
+  } catch (error:any) {
+
+    return res.status(500).json({
+      success:false,
+      message:error.message,
+    });
+
   }
+
 }
 
+
 // =========================
-// USER: ORDER DETAIL (only own)
-// GET /api/orders/:id
+// USER - BOOKING DETAIL
 // =========================
-export async function myOrderDetail(req: AuthRequest, res: Response) {
+export async function bookingDetail(
+  req: Request,
+  res: Response
+) {
+
   try {
-    const userId = req.userId;
-    if (!userId) return res.status(401).json({ success: false, message: "Authentication required" });
 
     const { id } = req.params;
-    if (!mongoose.isValidObjectId(id)) {
-      return res.status(400).json({ success: false, message: "Invalid order id" });
+
+
+    if(!mongoose.isValidObjectId(id)){
+      return res.status(400).json({
+        success:false,
+        message:"Invalid booking id"
+      });
     }
 
-    const order = await OrderModel.findOne({ _id: id, userId });
-    if (!order) return res.status(404).json({ success: false, message: "Order not found" });
 
-    return res.status(200).json({ success: true, data: order });
-  } catch (err: any) {
-    return res.status(500).json({ success: false, message: err?.message || "Internal Server Error" });
+    const booking =
+      await bookingService.getBooking(id);
+
+
+    if(!booking){
+
+      return res.status(404).json({
+        success:false,
+        message:"Booking not found"
+      });
+
+    }
+
+
+    return res.json({
+      success:true,
+      booking
+    });
+
+
+  } catch(error:any){
+
+    return res.status(500).json({
+      success:false,
+      message:error.message
+    });
+
   }
+
 }
 
+
+
 // =========================
-// USER: CANCEL OWN ORDER (demo)
-// PATCH /api/orders/:id/cancel
+// USER - CANCEL BOOKING
 // =========================
-export async function cancelMyOrder(req: AuthRequest, res: Response) {
-  try {
-    const userId = req.userId;
-    if (!userId) return res.status(401).json({ success: false, message: "Authentication required" });
+export async function cancelBooking(
+  req: Request,
+  res: Response
+){
+
+  try{
 
     const { id } = req.params;
-    if (!mongoose.isValidObjectId(id)) {
-      return res.status(400).json({ success: false, message: "Invalid order id" });
+
+
+    const booking =
+      await bookingService.cancelBooking(id);
+
+
+
+    if(!booking){
+
+      return res.status(404).json({
+        success:false,
+        message:"Booking not found"
+      });
+
     }
 
-    const order = await OrderModel.findOne({ _id: id, userId });
-    if (!order) return res.status(404).json({ success: false, message: "Order not found" });
 
-    if (order.status === "Shipped" || order.status === "Delivered") {
-      return res.status(400).json({ success: false, message: "Order cannot be cancelled now" });
-    }
 
-    if (order.status === "Cancelled") {
-      return res.status(200).json({ success: true, message: "Already cancelled", data: order });
-    }
+    return res.json({
+      success:true,
+      booking
+    });
 
-    order.status = "Cancelled";
-    await order.save();
 
-    return res.status(200).json({ success: true, message: "Order cancelled", data: order });
-  } catch (err: any) {
-    return res.status(500).json({ success: false, message: err?.message || "Internal Server Error" });
+
+  }catch(error:any){
+
+    return res.status(500).json({
+      success:false,
+      message:error.message
+    });
+
   }
+
 }
+
+
 
 // =========================
-// ADMIN LIST/GET/UPDATE STATUS (your existing admin routes can keep using these)
+// ADMIN - LIST BOOKINGS
 // =========================
-export async function adminListOrders(req: Request, res: Response) {
+export async function adminListBookings(
+  req: Request,
+  res: Response
+) {
+
   try {
-    const q = String(req.query.q ?? "").trim().toLowerCase();
-    const status = String(req.query.status ?? "").trim() as OrderStatus | "";
-    const page = Math.max(1, Number(req.query.page ?? 1));
-    const limit = Math.min(50, Math.max(1, Number(req.query.limit ?? 10)));
-    const skip = (page - 1) * limit;
 
-    const filter: any = {};
-    if (status && ADMIN_STATUSES.includes(status)) filter.status = status;
+    const page =
+      Math.max(1, Number(req.query.page || 1));
 
-    if (q) {
-      filter.$or = [
-        { customerName: { $regex: q, $options: "i" } },
-        { customerEmail: { $regex: q, $options: "i" } },
-      ];
-    }
+    const limit =
+      Math.max(1, Number(req.query.limit || 10));
 
-    const [items, total] = await Promise.all([
-      OrderModel.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
-      OrderModel.countDocuments(filter),
-    ]);
 
-    return res.status(200).json({ success: true, data: items, meta: { total, page, limit } });
-  } catch (err: any) {
-    return res.status(500).json({ success: false, message: err?.message || "Internal Server Error" });
+    const skip =
+      (page - 1) * limit;
+
+
+    const [bookings,total] =
+      await Promise.all([
+
+        BookingModel.find()
+        .populate("movieId")
+        .populate("showtimeId")
+        .populate("userId")
+        .sort({
+          createdAt:-1
+        })
+        .skip(skip)
+        .limit(limit),
+
+
+        BookingModel.countDocuments()
+
+      ]);
+
+
+
+    return res.json({
+
+      success:true,
+      bookings,
+      page,
+      total,
+      totalPages:
+      Math.ceil(total / limit)
+
+    });
+
+
+  }catch(error:any){
+
+    return res.status(500).json({
+      success:false,
+      message:error.message
+    });
+
   }
+
 }
 
-export async function adminGetOrder(req: Request, res: Response) {
-  try {
-    const { id } = req.params;
-    if (!mongoose.isValidObjectId(id)) return res.status(400).json({ success: false, message: "Invalid order id" });
 
-    const order = await OrderModel.findById(id);
-    if (!order) return res.status(404).json({ success: false, message: "Order not found" });
 
-    return res.status(200).json({ success: true, data: order });
-  } catch (err: any) {
-    return res.status(500).json({ success: false, message: err?.message || "Internal Server Error" });
-  }
+// =========================
+// ADMIN - GET BOOKING
+// =========================
+export async function adminGetBooking(
+  req:Request,
+  res:Response
+){
+
+try{
+
+const {id}=req.params;
+
+
+if(!mongoose.isValidObjectId(id)){
+
+return res.status(400).json({
+success:false,
+message:"Invalid booking id"
+});
+
 }
 
-export async function adminUpdateOrderStatus(req: Request, res: Response) {
-  try {
-    const { id } = req.params;
-    const status = String(req.body?.status ?? "").trim() as OrderStatus;
 
-    if (!mongoose.isValidObjectId(id)) return res.status(400).json({ success: false, message: "Invalid order id" });
-    if (!ADMIN_STATUSES.includes(status)) {
-      return res.status(400).json({ success: false, message: "Invalid status", allowed: ADMIN_STATUSES });
-    }
+const booking =
+await BookingModel.findById(id)
+.populate("movieId")
+.populate("showtimeId")
+.populate("userId");
 
-    const updated = await OrderModel.findByIdAndUpdate(id, { status }, { new: true });
-    if (!updated) return res.status(404).json({ success: false, message: "Order not found" });
 
-    return res.status(200).json({ success: true, message: "Status updated", data: updated });
-  } catch (err: any) {
-    return res.status(500).json({ success: false, message: err?.message || "Internal Server Error" });
-  }
+
+if(!booking){
+
+return res.status(404).json({
+success:false,
+message:"Booking not found"
+});
+
+}
+
+
+return res.json({
+success:true,
+booking
+});
+
+
+}catch(error:any){
+
+return res.status(500).json({
+success:false,
+message:error.message
+});
+
+}
+
+}
+
+
+
+// =========================
+// ADMIN - UPDATE STATUS
+// =========================
+export async function adminUpdateBookingStatus(
+req:Request,
+res:Response
+){
+
+try{
+
+const {id}=req.params;
+
+const status =
+req.body.status as BookingStatus;
+
+
+const allowed:BookingStatus[]=[
+"Pending",
+"Confirmed",
+"Cancelled"
+];
+
+
+if(!allowed.includes(status)){
+
+return res.status(400).json({
+success:false,
+message:"Invalid booking status"
+});
+
+}
+
+
+
+const booking =
+await BookingModel.findByIdAndUpdate(
+id,
+{
+status
+},
+{
+new:true
+}
+);
+
+
+
+return res.json({
+success:true,
+booking
+});
+
+
+}catch(error:any){
+
+return res.status(500).json({
+success:false,
+message:error.message
+});
+
+}
+
+
 }

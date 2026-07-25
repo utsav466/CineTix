@@ -1,70 +1,144 @@
-import mongoose, { Schema, InferSchemaType } from "mongoose";
+import mongoose, { Schema, Document } from "mongoose";
 
-export type OrderStatus =
+export type BookingStatus =
   | "Pending"
-  | "Processing"
-  | "Shipped"
-  | "Delivered"
+  | "Confirmed"
   | "Cancelled";
 
-export type PaymentMethod = "COD" | "ESEWA";
-export type PaymentStatus = "Unpaid" | "Pending" | "Paid" | "Failed";
+export type PaymentMethod =
+  | "ESEWA"
+  | "CARD"
+  | "CASH";
 
-const OrderItemSchema = new Schema(
+export type PaymentStatus =
+  | "Pending"
+  | "Paid"
+  | "Failed";
+
+const FoodItemSchema = new Schema(
   {
-    bookId: { type: Schema.Types.ObjectId, ref: "Book", required: false },
-    title: { type: String, required: true, trim: true },
-    price: { type: Number, required: true, min: 0 },
-    qty: { type: Number, required: true, min: 1 },
+    name: {
+      type: String,
+      required: true,
+    },
+
+    quantity: {
+      type: Number,
+      required: true,
+      default: 1,
+    },
+
+    price: {
+      type: Number,
+      required: true,
+    },
   },
-  { _id: false }
+  {
+    _id: false,
+  }
 );
 
-const OrderSchema = new Schema(
+export interface IBooking extends Document {
+  userId: mongoose.Types.ObjectId;
+
+  movieId: mongoose.Types.ObjectId;
+
+  showtimeId: mongoose.Types.ObjectId;
+
+  seats: string[];
+
+  foods: {
+    name: string;
+    quantity: number;
+    price: number;
+  }[];
+
+  totalAmount: number;
+
+  paymentMethod: PaymentMethod;
+
+  paymentStatus: PaymentStatus;
+
+  paymentRef: string;
+
+  qrCode: string;
+
+  status: BookingStatus;
+
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const BookingSchema = new Schema<IBooking>(
   {
-    userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
 
-    customerName: { type: String, required: true, trim: true },
-    customerEmail: { type: String, default: "", trim: true },
+    movieId: {
+      type: Schema.Types.ObjectId,
+      ref: "Movie",
+      required: true,
+    },
 
-    items: { type: [OrderItemSchema], required: true, default: [] },
+    showtimeId: {
+      type: Schema.Types.ObjectId,
+      ref: "Showtime",
+      required: true,
+    },
 
-    shippingAmount: { type: Number, required: true, default: 0, min: 0 },
-    totalAmount: { type: Number, required: true, min: 0 },
+    seats: [
+      {
+        type: String,
+        required: true,
+      },
+    ],
 
-    status: {
-      type: String,
-      enum: ["Pending", "Processing", "Shipped", "Delivered", "Cancelled"],
-      default: "Pending",
+    foods: {
+      type: [FoodItemSchema],
+      default: [],
+    },
+
+    totalAmount: {
+      type: Number,
       required: true,
     },
 
     paymentMethod: {
       type: String,
-      enum: ["COD", "ESEWA"],
-      default: "COD",
-      required: true,
+      enum: ["ESEWA", "CARD", "CASH"],
+      default: "ESEWA",
     },
 
     paymentStatus: {
       type: String,
-      enum: ["Unpaid", "Pending", "Paid", "Failed"],
-      default: "Unpaid",
-      required: true,
+      enum: ["Pending", "Paid", "Failed"],
+      default: "Pending",
     },
 
     paymentRef: {
       type: String,
       default: "",
     },
+
+    qrCode: {
+      type: String,
+      default: "",
+    },
+
+    status: {
+      type: String,
+      enum: ["Pending", "Confirmed", "Cancelled"],
+      default: "Pending",
+    },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+  }
 );
 
-export type OrderDocument = InferSchemaType<typeof OrderSchema>;
-
-// ✅ compatibility fix for old files importing IOrder
-export type IOrder = OrderDocument;
-
-export const OrderModel =
-  mongoose.models.Order || mongoose.model("Order", OrderSchema);
+export const BookingModel =
+  mongoose.models.Booking ||
+  mongoose.model<IBooking>("Booking", BookingSchema);

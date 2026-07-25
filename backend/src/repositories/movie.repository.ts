@@ -1,27 +1,34 @@
-import { BookModel, IBook } from "../models/movie.model";
+import { MovieModel, IMovie } from "../models/movie.model";
 
-export class BookRepository {
-  async create(data: Partial<IBook>) {
-    return BookModel.create(data);
+export class MovieRepository {
+  async create(data: Partial<IMovie>) {
+    return MovieModel.create(data);
   }
 
   async findById(id: string) {
-    return BookModel.findById(id);
+    return MovieModel.findById(id);
   }
 
-  async updateById(id: string, data: Partial<IBook>) {
-    return BookModel.findByIdAndUpdate(id, data, { new: true });
+  async updateById(id: string, data: Partial<IMovie>) {
+    return MovieModel.findByIdAndUpdate(id, data, {
+      new: true,
+    });
   }
 
   async deleteById(id: string) {
-    return BookModel.findByIdAndDelete(id);
+    return MovieModel.findByIdAndDelete(id);
   }
 
   async list(query: any, skip: number, limit: number, sort: any) {
     const [items, total] = await Promise.all([
-      BookModel.find(query).sort(sort).skip(skip).limit(limit),
-      BookModel.countDocuments(query),
+      MovieModel.find(query)
+        .sort(sort)
+        .skip(skip)
+        .limit(limit),
+
+      MovieModel.countDocuments(query),
     ]);
+
     return { items, total };
   }
 }
