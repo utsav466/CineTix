@@ -1,87 +1,104 @@
 import { UserModel, IUser } from "../models/user.model";
+import { CreateUserDTO } from "../dtos/user.dto";
 
-export interface IUserRepository {
-  createUser(userData: Partial<IUser>): Promise<IUser>;
-  getUserByEmail(email: string): Promise<IUser | null>;
-  getUserByUsername(username: string): Promise<IUser | null>;
-  getUserById(id: string): Promise<IUser | null>;
-  getAllUsers(
-    page: number,
-    limit: number,
-    search?: string
-  ): Promise<{
-    users: IUser[];
-    total: number;
-  }>;
-  updateUser(id: string, updateData: Partial<IUser>): Promise<IUser | null>;
-  deleteUser(id: string): Promise<boolean>;
-}
-
-export class UserRepository implements IUserRepository {
-  async createUser(userData: Partial<IUser>): Promise<IUser> {
-    const user = new UserModel(userData);
-    return await user.save();
+export class UserRepository {
+  async createUser(
+    data: CreateUserDTO
+  ): Promise<IUser> {
+    return UserModel.create(data);
   }
 
-  async getUserByEmail(email: string): Promise<IUser | null> {
-    return await UserModel.findOne({ email }).exec();
+  async getUserById(
+    id: string
+  ): Promise<IUser | null> {
+    return UserModel.findById(id);
   }
 
-  async getUserByUsername(username: string): Promise<IUser | null> {
-    return await UserModel.findOne({ username }).exec();
+  async getUserByEmail(
+    email: string
+  ): Promise<IUser | null> {
+    return UserModel.findOne({
+      email: email.toLowerCase(),
+    });
   }
 
-  async getUserById(id: string): Promise<IUser | null> {
-    return await UserModel.findById(id)
-      .select("-password")
-      .exec();
-  }
-
-  async getAllUsers(
-    page: number,
-    limit: number,
-    search?: string
-  ): Promise<{ users: IUser[]; total: number }> {
-    const skip = (page - 1) * limit;
-
-    let filter: any = {};
-
-    if (search) {
-      filter = {
-        $or: [
-          { fullName: { $regex: search, $options: "i" } },
-          { email: { $regex: search, $options: "i" } },
-          { username: { $regex: search, $options: "i" } },
-        ],
-      };
-    }
-
-    const [users, total] = await Promise.all([
-      UserModel.find(filter)
-        .select("-password")
-        .skip(skip)
-        .limit(limit)
-        .exec(),
-      UserModel.countDocuments(filter),
-    ]);
-
-    return { users, total };
+  async getUserByUsername(
+    username: string
+  ): Promise<IUser | null> {
+    return UserModel.findOne({
+      username,
+    });
   }
 
   async updateUser(
     id: string,
-    updateData: Partial<IUser>
+    data: Partial<IUser>
   ): Promise<IUser | null> {
-    return await UserModel.findByIdAndUpdate(id, updateData, {
-      new: true,
-      runValidators: true,
-    })
-      .select("-password")
-      .exec();
+    return UserModel.findByIdAndUpdate(
+      id,
+      data,
+      {
+        new: true,
+        runValidators: true,
+      }
+    );
   }
 
-  async deleteUser(id: string): Promise<boolean> {
-    const result = await UserModel.findByIdAndDelete(id).exec();
-    return result ? true : false;
+  async deleteUser(
+    id: string
+  ): Promise<IUser | null> {
+    return UserModel.findByIdAndDelete(id);
+  }
+
+  async getAllUsers(
+    page: number = 1,
+    limit: number = 10,
+    search: string = ""
+  ): Promise<{
+    users: IUser[];
+    total: number;
+  }> {
+    const skip = (page - 1) * limit;
+
+    const query: any = {};
+
+    if (search.trim()) {
+      query.$or = [
+        {
+          fullName: {
+            $regex: search,
+            $options: "i",
+          },
+        },
+        {
+          email: {
+            $regex: search,
+            $options: "i",
+          },
+        },
+        {
+          username: {
+            $regex: search,
+            $options: "i",
+          },
+        },
+      ];
+    }
+
+    const [users, total] = await Promise.all([
+      UserModel.find(query)
+        .sort({
+          createdAt: -1,
+        })
+        .skip(skip)
+        .limit(limit),
+
+      UserModel.countDocuments(query),
+    ]);
+
+    return {
+      users,
+      total,
+    };
   }
 }

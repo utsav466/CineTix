@@ -6,6 +6,11 @@ import cookieParser from "cookie-parser";
 import { connectDB } from "./database/mongodb";
 import { PORT } from "./config";
 
+// Seed Controllers
+import { seedMovies } from "./controllers/movie.seed.controller";
+import { seedCinemas } from "./controllers/cinema.seed.controller";
+import { seedShowtimes } from "./controllers/showtime.seed.controller";
+
 // =========================
 // Authentication
 // =========================
@@ -69,8 +74,17 @@ app.use(cookieParser());
 app.use(express.json());
 
 // =========================
+// Seed Routes
+// =========================
+
+app.get("/api/seed/movies", seedMovies);
+app.get("/api/seed/cinemas", seedCinemas);
+app.get("/api/seed/showtimes", seedShowtimes);
+
+// =========================
 // Static Uploads
 // =========================
+
 app.use(
   "/uploads",
   express.static(path.join(process.cwd(), "uploads"))
@@ -114,8 +128,9 @@ app.use("/api/admin/reports", adminReportsRoutes);
 app.use("/api/payments", paymentRoutes);
 
 // =========================
-// Root Route
+// Root
 // =========================
+
 app.get("/", (_: Request, res: Response) => {
   res.status(200).json({
     success: true,
@@ -126,6 +141,7 @@ app.get("/", (_: Request, res: Response) => {
 // =========================
 // Start Server
 // =========================
+
 async function startServer() {
   try {
     await connectDB();
