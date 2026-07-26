@@ -1,0 +1,2 @@
+import Link from "next/link";
+export default function AuthShell({title,children,footerText,footerLink,footerHref}:{title:string;children:React.ReactNode;footerText:string;footerLink:string;footerHref:string}){return <main className="auth-page"><section className="auth-art"/><section className="auth-panel"><div className="auth-box"><h1>{title}</h1>{children}<p className="auth-switch">{footerText} <Link href={footerHref}>{footerLink}</Link></p></div><small className="copyright">© 2026 ALL RIGHTS RESERVED</small></section></main>}

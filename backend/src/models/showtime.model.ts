@@ -1,6 +1,6 @@
 import mongoose, { Document, Schema } from "mongoose";
 
-export type SeatStatus = "available" | "booked";
+export type SeatStatus = "available" | "reserved" | "booked";
 
 export interface ISeat {
   seatNumber: string;
@@ -9,12 +9,14 @@ export interface ISeat {
 
 export interface IShowtime extends Document {
   movieId: mongoose.Types.ObjectId;
+  cinemaId: mongoose.Types.ObjectId;
 
-  cinema: string;
-  screen: string;
+  hall: string;
 
   date: Date;
   time: string;
+
+  language: string;
 
   price: number;
 
@@ -33,7 +35,7 @@ const SeatSchema = new Schema<ISeat>(
 
     status: {
       type: String,
-      enum: ["available", "booked"],
+      enum: ["available", "reserved", "booked"],
       default: "available",
     },
   },
@@ -50,12 +52,13 @@ const ShowtimeSchema = new Schema<IShowtime>(
       required: true,
     },
 
-    cinema: {
-      type: String,
+    cinemaId: {
+      type: Schema.Types.ObjectId,
+      ref: "Cinema",
       required: true,
     },
 
-    screen: {
+    hall: {
       type: String,
       required: true,
     },
@@ -68,6 +71,11 @@ const ShowtimeSchema = new Schema<IShowtime>(
     time: {
       type: String,
       required: true,
+    },
+
+    language: {
+      type: String,
+      default: "English",
     },
 
     price: {

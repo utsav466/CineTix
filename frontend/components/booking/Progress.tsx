@@ -1,0 +1,1 @@
+export default function Progress({step}:{step:1|2}){return <div className="progress"><div><span className={step>=1?"active":""}>1</span><small>cart</small></div><i/><div><span className={step>=2?"active":""}>2</span><small>checkout</small></div></div>}
