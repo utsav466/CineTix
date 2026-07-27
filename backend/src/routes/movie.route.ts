@@ -1,12 +1,22 @@
-import { Router } from "express";
 import {
-  getPublicMovie,
-  listPublicMovies,
+  Router,
+} from "express";
+
+import {
+  getMovie,
+  listMovies,
 } from "../controllers/movie.controller";
 
 const router = Router();
 
-router.get("/", listPublicMovies);
-router.get("/:id", getPublicMovie);
+router.get(
+  "/",
+  listMovies,
+);
+
+router.get(
+  "/:id",
+  getMovie,
+);
 
 export default router;

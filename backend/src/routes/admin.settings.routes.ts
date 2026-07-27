@@ -1,13 +1,54 @@
-import { Router } from "express";
-import { requireAuth } from "../middlewares/auth.middlewares";
-import { requireAdmin } from "../middlewares/admin.middleware";
-import { getSettings, updateSettings } from "../controllers/admin.settings.controller";
+import {
+  Router,
+} from "express";
 
-const router = Router();
+import {
+  getSettings,
+  updateSettings,
+} from "../controllers/admin.settings.controller";
 
-router.use(requireAuth, requireAdmin);
+import {
+  requireAdmin,
+} from "../middlewares/admin.middleware";
 
-router.get("/", getSettings);
-router.patch("/", updateSettings);
+import {
+  requireAuth,
+} from "../middlewares/auth.middlewares";
+
+import {
+  settingsImageUpload,
+} from "../middlewares/upload.middleware";
+
+const router =
+  Router();
+
+router.use(
+  requireAuth,
+  requireAdmin,
+);
+
+router.get(
+  "/",
+  getSettings,
+);
+
+router.patch(
+  "/",
+  settingsImageUpload.fields([
+    {
+      name: "logoImage",
+      maxCount: 1,
+    },
+    {
+      name: "faviconImage",
+      maxCount: 1,
+    },
+    {
+      name: "heroImage",
+      maxCount: 1,
+    },
+  ]),
+  updateSettings,
+);
 
 export default router;

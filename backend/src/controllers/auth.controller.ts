@@ -1,194 +1,480 @@
-import { Request, Response } from "express";
-import { UserService } from "../services/user.services";
-import { CreateUserDTO, LoginUserDTO } from "../dtos/user.dto";
-import crypto from "crypto";
-import bcryptjs from "bcryptjs";
-import { UserModel } from "../models/user.model";
+import {
+  NextFunction,
+  Request,
+  Response,
+} from "express";
 
-const userService = new UserService();
+import { env } from "../config";
 
-export class AuthController {
-  // ========================
-  // REGISTER
-  // ========================
-  async register(req: Request, res: Response) {
-    try {
-      const parsedData = CreateUserDTO.safeParse(req.body);
+import {
+  AuthRequest,
+} from "../middlewares/auth.middlewares";
 
-      if (!parsedData.success) {
-        return res.status(400).json({
-          success: false,
-          message: "Validation failed",
-          errors: parsedData.error.issues,
-        });
-      }
+import User, {
+  UserDocument,
+} from "../models/user.model";
 
-      const newUser = await userService.createUser(parsedData.data);
+import {
+  generateToken,
+} from "../utils/jwt";
 
-      return res.status(201).json({
-        success: true,
-        message: "User Created",
-        data: newUser,
-      });
-    } catch (error: any) {
-      return res.status(error.statusCode ?? 500).json({
+type RegisterRequestBody = {
+  fullName?: string;
+  email?: string;
+  phone?: string;
+  password?: string;
+  confirmPassword?: string;
+};
+
+type LoginRequestBody = {
+  email?: string;
+  password?: string;
+  rememberMe?: boolean;
+};
+
+function normalizeEmail(
+  email: string,
+): string {
+  return email
+    .trim()
+    .toLowerCase();
+}
+
+function createUsername(
+  email: string,
+): string {
+  return email
+    .split("@")[0]
+    .replace(
+      /[^a-z0-9._-]/gi,
+      "",
+    )
+    .toLowerCase()
+    .slice(0, 30);
+}
+
+function authCookieOptions() {
+  return {
+    httpOnly: true,
+
+    secure:
+      env.isProduction,
+
+    sameSite:
+      env.isProduction
+        ? ("none" as const)
+        : ("lax" as const),
+
+    path: "/",
+  };
+}
+
+function setAuthCookie(
+  response: Response,
+  token: string,
+  rememberMe: boolean,
+): void {
+  response.cookie(
+    env.cookieName,
+    token,
+    {
+      ...authCookieOptions(),
+
+      maxAge:
+        (
+          rememberMe
+            ? env.cookieMaxAgeDays
+            : 1
+        ) *
+        24 *
+        60 *
+        60 *
+        1000,
+    },
+  );
+}
+
+function clearAuthCookie(
+  response: Response,
+): void {
+  response.clearCookie(
+    env.cookieName,
+    authCookieOptions(),
+  );
+}
+
+function serializeUser(
+  user: UserDocument,
+) {
+  return {
+    id:
+      user._id.toString(),
+
+    fullName:
+      user.fullName,
+
+    name:
+      user.fullName,
+
+    email:
+      user.email,
+
+    username:
+      user.username || "",
+
+    phone:
+      user.phone || "",
+
+    role:
+      user.role,
+
+    preferredCurrency:
+      user.preferredCurrency,
+
+    avatarUrl:
+      user.avatarUrl || "",
+
+    isActive:
+      user.isActive,
+
+    createdAt:
+      user.createdAt,
+
+    updatedAt:
+      user.updatedAt,
+  };
+}
+
+export async function register(
+  request:
+    Request<
+      Record<string, never>,
+      unknown,
+      RegisterRequestBody
+    >,
+  response: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const {
+      fullName,
+      email,
+      phone,
+      password,
+      confirmPassword,
+    } =
+      request.body;
+
+    if (
+      !fullName?.trim() ||
+      !email?.trim() ||
+      !password
+    ) {
+      response.status(400).json({
         success: false,
-        message: error.message || "Internal Server Error",
+
+        message:
+          "Full name, email and password are required.",
       });
+
+      return;
     }
-  }
 
-  // =============================
-  // LOGIN
-  // =============================
-  async login(req: Request, res: Response) {
-    try {
-      const parsedData = LoginUserDTO.safeParse(req.body);
-
-      if (!parsedData.success) {
-        return res.status(400).json({
-          success: false,
-          message: "Validation failed",
-          errors: parsedData.error.issues,
-        });
-      }
-
-      const { email, password } = parsedData.data;
-
-      const user = await UserModel.findOne({ email });
-
-      // ✅ TEST EXPECTS 404 IF USER NOT FOUND
-      if (!user) {
-        return res.status(404).json({
-          success: false,
-          message: "User not found",
-        });
-      }
-
-      const isMatch = await bcryptjs.compare(password, user.password);
-
-      if (!isMatch) {
-        return res.status(401).json({
-          success: false,
-          message: "Invalid credentials",
-        });
-      }
-
-      const { token } = await userService.loginUser(parsedData.data);
-
-const { password: _pw, ...safeUser } = user.toObject();
-
-return res.status(200).json({
-  success: true,
-  message: "Login successful",
-  data: safeUser,
-  token,
-});
-    } catch (error: any) {
-      return res.status(500).json({
+    if (
+      password.length < 8
+    ) {
+      response.status(400).json({
         success: false,
-        message: "Internal Server Error",
+
+        message:
+          "Password must be at least 8 characters.",
       });
+
+      return;
     }
-  }
 
-  // =============================
-  // FORGOT PASSWORD
-  // =============================
-  async forgotPassword(req: Request, res: Response) {
-    try {
-      const { email } = req.body;
-
-      if (!email) {
-        return res.status(400).json({
-          success: false,
-          message: "Email is required",
-        });
-      }
-
-      const user = await UserModel.findOne({ email });
-
-      // ✅ TEST EXPECTS SAFE RESPONSE (ALWAYS 200)
-      if (!user) {
-        return res.status(200).json({
-          success: true,
-          message: "If that email exists, a reset link has been sent",
-        });
-      }
-
-      const resetToken = crypto.randomBytes(32).toString("hex");
-
-      const hashedToken = crypto
-        .createHash("sha256")
-        .update(resetToken)
-        .digest("hex");
-
-      user.resetPasswordToken = hashedToken;
-      user.resetPasswordExpires = new Date(Date.now() + 10 * 60 * 1000);
-
-      await user.save();
-
-      return res.status(200).json({
-        success: true,
-        message: "Reset token generated",
-        resetToken, // kept for testing
-      });
-    } catch (error) {
-      return res.status(500).json({
+    if (
+      confirmPassword !==
+        undefined &&
+      password !==
+        confirmPassword
+    ) {
+      response.status(400).json({
         success: false,
-        message: "Something went wrong",
+        message:
+          "Passwords do not match.",
       });
+
+      return;
     }
-  }
 
-  // =============================
-  // RESET PASSWORD
-  // =============================
-  async resetPassword(req: Request, res: Response) {
-    try {
-      const { token, password } = req.body;
+    const normalizedEmail =
+      normalizeEmail(email);
 
-      if (!token || !password) {
-        return res.status(400).json({
-          success: false,
-          message: "Token and new password are required",
-        });
-      }
-
-      const hashedToken = crypto
-        .createHash("sha256")
-        .update(token)
-        .digest("hex");
-
-      const user = await UserModel.findOne({
-        resetPasswordToken: hashedToken,
-        resetPasswordExpires: { $gt: new Date() },
+    const existingUser =
+      await User.findOne({
+        email:
+          normalizedEmail,
       });
 
-      if (!user) {
-        return res.status(400).json({
-          success: false,
-          message: "Invalid or expired token",
-        });
-      }
-
-      const hashedPassword = await bcryptjs.hash(password, 10);
-
-      user.password = hashedPassword;
-      user.resetPasswordToken = undefined;
-      user.resetPasswordExpires = undefined;
-
-      await user.save();
-
-      return res.status(200).json({
-        success: true,
-        message: "Password reset successful",
-      });
-    } catch (error) {
-      return res.status(500).json({
+    if (existingUser) {
+      response.status(409).json({
         success: false,
-        message: "Something went wrong",
+
+        message:
+          "An account with this email already exists.",
       });
+
+      return;
     }
+
+    let username =
+      createUsername(
+        normalizedEmail,
+      ) ||
+      `user${Date.now()}`;
+
+    if (
+      await User.exists({
+        username,
+      })
+    ) {
+      username =
+        `${username.slice(
+          0,
+          24,
+        )}${Date.now()
+          .toString()
+          .slice(-5)}`;
+    }
+
+    const user =
+      await User.create({
+        fullName:
+          fullName.trim(),
+
+        email:
+          normalizedEmail,
+
+        username,
+
+        phone:
+          phone?.trim() ||
+          "",
+
+        password,
+
+        role:
+          "customer",
+
+        preferredCurrency:
+          "NPR",
+
+        avatarUrl: "",
+
+        isActive: true,
+      });
+
+    response.status(201).json({
+      success: true,
+
+      message:
+        "Account created successfully.",
+
+      data: {
+        user:
+          serializeUser(
+            user,
+          ),
+      },
+    });
+  } catch (error) {
+    next(error);
   }
+}
+
+export async function login(
+  request:
+    Request<
+      Record<string, never>,
+      unknown,
+      LoginRequestBody
+    >,
+  response: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const {
+      email,
+      password,
+      rememberMe = false,
+    } =
+      request.body;
+
+    if (
+      !email?.trim() ||
+      !password
+    ) {
+      response.status(400).json({
+        success: false,
+
+        message:
+          "Email and password are required.",
+      });
+
+      return;
+    }
+
+    const user =
+      await User.findOne({
+        email:
+          normalizeEmail(email),
+      }).select(
+        "+password",
+      );
+
+    if (!user) {
+      response.status(401).json({
+        success: false,
+
+        message:
+          "Incorrect email or password.",
+      });
+
+      return;
+    }
+
+    if (!user.isActive) {
+      response.status(403).json({
+        success: false,
+
+        message:
+          "This account has been disabled.",
+      });
+
+      return;
+    }
+
+    const passwordMatches =
+      await user.comparePassword(
+        password,
+      );
+
+    if (!passwordMatches) {
+      response.status(401).json({
+        success: false,
+
+        message:
+          "Incorrect email or password.",
+      });
+
+      return;
+    }
+
+    const token =
+      generateToken({
+        userId:
+          user._id.toString(),
+
+        role:
+          user.role,
+      });
+
+    setAuthCookie(
+      response,
+      token,
+      Boolean(rememberMe),
+    );
+
+    response.status(200).json({
+      success: true,
+
+      message:
+        "Signed in successfully.",
+
+      data: {
+        user:
+          serializeUser(
+            user,
+          ),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function getMe(
+  request: AuthRequest,
+  response: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const userId =
+      request.auth?.userId ||
+      request.userId;
+
+    if (!userId) {
+      response.status(401).json({
+        success: false,
+
+        message:
+          "Authentication is required.",
+      });
+
+      return;
+    }
+
+    const user =
+      await User.findById(
+        userId,
+      );
+
+    if (
+      !user ||
+      !user.isActive
+    ) {
+      clearAuthCookie(
+        response,
+      );
+
+      response.status(401).json({
+        success: false,
+
+        message:
+          "Your account could not be loaded.",
+      });
+
+      return;
+    }
+
+    response.status(200).json({
+      success: true,
+
+      data: {
+        user:
+          serializeUser(
+            user,
+          ),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export function logout(
+  _request: Request,
+  response: Response,
+): void {
+  clearAuthCookie(
+    response,
+  );
+
+  response.status(200).json({
+    success: true,
+
+    message:
+      "Signed out successfully.",
+  });
 }

@@ -1,144 +1,396 @@
-import mongoose, { Schema, Document } from "mongoose";
+import mongoose, {
+  Document,
+  Model,
+  Schema,
+} from "mongoose";
 
 export type BookingStatus =
-  | "Pending"
-  | "Confirmed"
-  | "Cancelled";
+  | "held"
+  | "payment_pending"
+  | "confirmed"
+  | "cancelled"
+  | "expired";
 
-export type PaymentMethod =
+export type BookingPaymentStatus =
+  | "unpaid"
+  | "pending"
+  | "paid"
+  | "failed"
+  | "refunded";
+
+export type BookingPaymentMethod =
+  | "KHALTI"
   | "ESEWA"
-  | "CARD"
   | "CASH";
 
-export type PaymentStatus =
-  | "Pending"
-  | "Paid"
-  | "Failed";
+export type BookingSeatType =
+  | "regular"
+  | "premium"
+  | "recliner";
 
-const FoodItemSchema = new Schema(
-  {
-    name: {
-      type: String,
-      required: true,
-    },
+export interface IBookingSeat {
+  seatId: mongoose.Types.ObjectId;
+  seatCode: string;
+  type: BookingSeatType;
+  price: number;
+}
 
-    quantity: {
-      type: Number,
-      required: true,
-      default: 1,
-    },
-
-    price: {
-      type: Number,
-      required: true,
-    },
-  },
-  {
-    _id: false,
-  }
-);
+export interface IBookingFood {
+  foodId: mongoose.Types.ObjectId;
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+}
 
 export interface IBooking extends Document {
+  _id: mongoose.Types.ObjectId;
+
+  bookingCode: string;
+
   userId: mongoose.Types.ObjectId;
-
-  movieId: mongoose.Types.ObjectId;
-
   showtimeId: mongoose.Types.ObjectId;
+  movieId: mongoose.Types.ObjectId;
+  cinemaId: mongoose.Types.ObjectId;
+  screenId: mongoose.Types.ObjectId;
 
-  seats: string[];
+  seats: IBookingSeat[];
+  foodItems: IBookingFood[];
 
-  foods: {
-    name: string;
-    quantity: number;
-    price: number;
-  }[];
+  ticketSubtotal: number;
+  foodSubtotal: number;
 
+  couponId?: mongoose.Types.ObjectId;
+  couponCode?: string;
+
+  discountAmount: number;
   totalAmount: number;
 
-  paymentMethod: PaymentMethod;
-
-  paymentStatus: PaymentStatus;
-
-  paymentRef: string;
-
-  qrCode: string;
-
   status: BookingStatus;
+  paymentStatus: BookingPaymentStatus;
+
+  paymentMethod?: BookingPaymentMethod;
+
+  paymentRef?: string;
+
+  khaltiPidx?: string;
+  khaltiPaymentUrl?: string;
+
+  qrCode?: string;
+
+  holdExpiresAt: Date;
+
+  confirmedAt?: Date;
 
   createdAt: Date;
   updatedAt: Date;
 }
 
-const BookingSchema = new Schema<IBooking>(
-  {
-    userId: {
-      type: Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-    },
-
-    movieId: {
-      type: Schema.Types.ObjectId,
-      ref: "Movie",
-      required: true,
-    },
-
-    showtimeId: {
-      type: Schema.Types.ObjectId,
-      ref: "Showtime",
-      required: true,
-    },
-
-    seats: [
-      {
-        type: String,
+const BookingSeatSchema =
+  new Schema<IBookingSeat>(
+    {
+      seatId: {
+        type: Schema.Types.ObjectId,
+        ref: "Seat",
         required: true,
       },
-    ],
 
-    foods: {
-      type: [FoodItemSchema],
-      default: [],
+      seatCode: {
+        type: String,
+        required: true,
+        uppercase: true,
+        trim: true,
+      },
+
+      type: {
+        type: String,
+        enum: [
+          "regular",
+          "premium",
+          "recliner",
+        ],
+        required: true,
+      },
+
+      price: {
+        type: Number,
+        required: true,
+        min: 0,
+      },
     },
-
-    totalAmount: {
-      type: Number,
-      required: true,
+    {
+      _id: false,
     },
+  );
 
-    paymentMethod: {
-      type: String,
-      enum: ["ESEWA", "CARD", "CASH"],
-      default: "ESEWA",
+const BookingFoodSchema =
+  new Schema<IBookingFood>(
+    {
+      foodId: {
+        type: Schema.Types.ObjectId,
+        ref: "Food",
+        required: true,
+      },
+
+      name: {
+        type: String,
+        required: true,
+        trim: true,
+      },
+
+      quantity: {
+        type: Number,
+        required: true,
+        min: 1,
+        max: 20,
+      },
+
+      unitPrice: {
+        type: Number,
+        required: true,
+        min: 0,
+      },
+
+      lineTotal: {
+        type: Number,
+        required: true,
+        min: 0,
+      },
     },
-
-    paymentStatus: {
-      type: String,
-      enum: ["Pending", "Paid", "Failed"],
-      default: "Pending",
+    {
+      _id: false,
     },
+  );
 
-    paymentRef: {
-      type: String,
-      default: "",
+const BookingSchema =
+  new Schema<IBooking>(
+    {
+      bookingCode: {
+        type: String,
+        required: true,
+        unique: true,
+        index: true,
+        uppercase: true,
+        trim: true,
+      },
+
+      userId: {
+        type: Schema.Types.ObjectId,
+        ref: "User",
+        required: true,
+        index: true,
+      },
+
+      showtimeId: {
+        type: Schema.Types.ObjectId,
+        ref: "Showtime",
+        required: true,
+        index: true,
+      },
+
+      movieId: {
+        type: Schema.Types.ObjectId,
+        ref: "Movie",
+        required: true,
+        index: true,
+      },
+
+      cinemaId: {
+        type: Schema.Types.ObjectId,
+        ref: "Cinema",
+        required: true,
+        index: true,
+      },
+
+      screenId: {
+        type: Schema.Types.ObjectId,
+        ref: "Screen",
+        required: true,
+        index: true,
+      },
+
+      seats: {
+        type: [BookingSeatSchema],
+        required: true,
+        default: [],
+      },
+
+      foodItems: {
+        type: [BookingFoodSchema],
+        default: [],
+      },
+
+      ticketSubtotal: {
+        type: Number,
+        required: true,
+        min: 0,
+      },
+
+      foodSubtotal: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+
+      couponId: {
+        type: Schema.Types.ObjectId,
+        ref: "Coupon",
+      },
+
+      couponCode: {
+        type: String,
+        uppercase: true,
+        trim: true,
+        default: "",
+      },
+
+      discountAmount: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+
+      totalAmount: {
+        type: Number,
+        required: true,
+        min: 0,
+      },
+
+      status: {
+        type: String,
+        enum: [
+          "held",
+          "payment_pending",
+          "confirmed",
+          "cancelled",
+          "expired",
+        ],
+        default: "held",
+        index: true,
+      },
+
+      paymentStatus: {
+        type: String,
+        enum: [
+          "unpaid",
+          "pending",
+          "paid",
+          "failed",
+          "refunded",
+        ],
+        default: "unpaid",
+        index: true,
+      },
+
+      paymentMethod: {
+        type: String,
+        enum: [
+          "KHALTI",
+          "ESEWA",
+          "CASH",
+        ],
+      },
+
+      paymentRef: {
+        type: String,
+        trim: true,
+        default: "",
+      },
+
+      khaltiPidx: {
+        type: String,
+        trim: true,
+        index: true,
+      },
+
+      khaltiPaymentUrl: {
+        type: String,
+        trim: true,
+        default: "",
+      },
+
+      qrCode: {
+        type: String,
+        trim: true,
+        default: "",
+      },
+
+      holdExpiresAt: {
+        type: Date,
+        required: true,
+        index: true,
+      },
+
+      confirmedAt: {
+        type: Date,
+      },
     },
+    {
+      timestamps: true,
 
-    qrCode: {
-      type: String,
-      default: "",
+      toJSON: {
+        transform(
+          _document,
+          returnedObject,
+        ) {
+          const safeObject =
+            returnedObject as Record<
+              string,
+              unknown
+            >;
+
+          safeObject.id =
+            safeObject._id?.toString();
+
+          delete safeObject._id;
+          delete safeObject.__v;
+
+          return safeObject;
+        },
+      },
+
+      toObject: {
+        transform(
+          _document,
+          returnedObject,
+        ) {
+          const safeObject =
+            returnedObject as Record<
+              string,
+              unknown
+            >;
+
+          safeObject.id =
+            safeObject._id?.toString();
+
+          delete safeObject._id;
+          delete safeObject.__v;
+
+          return safeObject;
+        },
+      },
     },
+  );
 
-    status: {
-      type: String,
-      enum: ["Pending", "Confirmed", "Cancelled"],
-      default: "Pending",
-    },
-  },
-  {
-    timestamps: true,
-  }
-);
+BookingSchema.index({
+  userId: 1,
+  createdAt: -1,
+});
 
-export const BookingModel =
-  mongoose.models.Booking ||
-  mongoose.model<IBooking>("Booking", BookingSchema);
+BookingSchema.index({
+  showtimeId: 1,
+  status: 1,
+});
+
+BookingSchema.index({
+  paymentStatus: 1,
+  createdAt: -1,
+});
+
+export const BookingModel:
+  Model<IBooking> =
+    mongoose.models.Booking ||
+    mongoose.model<IBooking>(
+      "Booking",
+      BookingSchema,
+    );

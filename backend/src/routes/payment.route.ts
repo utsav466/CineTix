@@ -1,15 +1,38 @@
-import { Router } from "express";
-import { requireAuth } from "../middlewares/auth.middlewares";
 import {
-  esewaInitDemo,
-  esewaSuccessDemo,
-  esewaFailureDemo,
+  Router,
+} from "express";
+
+import {
+  initiateKhaltiPayment,
+  khaltiCallback,
+  verifyKhaltiPayment,
 } from "../controllers/payment.controller";
+
+import {
+  requireAuth,
+} from "../middlewares/auth.middlewares";
 
 const router = Router();
 
-router.post("/esewa/init", requireAuth, esewaInitDemo);
-router.get("/esewa/success", esewaSuccessDemo);
-router.get("/esewa/failure", esewaFailureDemo);
+/*
+ * Khalti redirects the browser here,
+ * so this route must remain public.
+ */
+router.get(
+  "/khalti/callback",
+  khaltiCallback,
+);
+
+router.post(
+  "/khalti/initiate",
+  requireAuth,
+  initiateKhaltiPayment,
+);
+
+router.get(
+  "/khalti/verify/:bookingId",
+  requireAuth,
+  verifyKhaltiPayment,
+);
 
 export default router;

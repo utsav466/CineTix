@@ -1,23 +1,84 @@
-import { Router } from "express";
-import { requireAuth } from "../middlewares/auth.middlewares";
-import { requireAdmin } from "../middlewares/admin.middleware";
+import {
+  Router,
+} from "express";
 
 import {
   adminCreateMovie,
   adminDeleteMovie,
   adminGetMovie,
   adminListMovies,
+  adminMovieStatistics,
   adminUpdateMovie,
 } from "../controllers/movie.controller";
 
-const router = Router();
+import {
+  requireAdmin,
+} from "../middlewares/admin.middleware";
 
-router.use(requireAuth, requireAdmin);
+import {
+  requireAuth,
+} from "../middlewares/auth.middlewares";
 
-router.get("/", adminListMovies);
-router.post("/", adminCreateMovie);
-router.get("/:id", adminGetMovie);
-router.patch("/:id", adminUpdateMovie);
-router.delete("/:id", adminDeleteMovie);
+import {
+  movieImageUpload,
+} from "../middlewares/upload.middleware";
+
+const router =
+  Router();
+
+router.use(
+  requireAuth,
+  requireAdmin,
+);
+
+router.get(
+  "/statistics",
+  adminMovieStatistics,
+);
+
+router.get(
+  "/",
+  adminListMovies,
+);
+
+router.post(
+  "/",
+  movieImageUpload.fields([
+    {
+      name: "posterImage",
+      maxCount: 1,
+    },
+    {
+      name: "bannerImage",
+      maxCount: 1,
+    },
+  ]),
+  adminCreateMovie,
+);
+
+router.get(
+  "/:id",
+  adminGetMovie,
+);
+
+router.patch(
+  "/:id",
+  movieImageUpload.fields([
+    {
+      name: "posterImage",
+      maxCount: 1,
+    },
+    {
+      name: "bannerImage",
+      maxCount: 1,
+    },
+  ]),
+  adminUpdateMovie,
+);
+
+router.delete(
+  "/:id",
+  adminDeleteMovie,
+);
 
 export default router;

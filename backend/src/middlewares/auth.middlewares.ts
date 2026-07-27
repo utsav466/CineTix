@@ -1,55 +1,103 @@
+import {
+  NextFunction,
+  Request,
+  Response,
+} from "express";
 
+import { env } from "../config";
 
-import { Request, Response, NextFunction } from "express";
-import jwt from "jsonwebtoken";
-import { JWT_SECRET } from "../config";
+import {
+  verifyToken,
+} from "../utils/jwt";
 
-export type AuthRequest = Request & {
-  userId?: string;
-  role?: string;
+export type AuthPayload = {
+  userId: string;
+  role: string;
 };
 
-export function requireAuth(
-  req: AuthRequest,
-  res: Response,
-  next: NextFunction
-) {
+export interface AuthRequest
+  extends Request {
+  userId?: string;
+  role?: string;
+  auth?: AuthPayload;
+}
 
-  const token =
-    req.cookies?.auth_token ||
-    req.headers.authorization?.replace("Bearer ", "");
+function getBearerToken(
+  request: Request,
+): string | undefined {
+  const authorization =
+    request.headers.authorization;
 
-  if (!token) {
-    return res.status(401).json({
-      success: false,
-      message: "Authentication required",
-    });
+  if (
+    !authorization ||
+    !authorization.startsWith(
+      "Bearer ",
+    )
+  ) {
+    return undefined;
   }
 
+  const token =
+    authorization
+      .slice(7)
+      .trim();
+
+  return token || undefined;
+}
+
+export function requireAuth(
+  request: AuthRequest,
+  response: Response,
+  next: NextFunction,
+): void {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as {
-      id?: string;
-      userId?: string;
-      role?: string;
-    };
+    const cookieToken =
+      request.cookies?.[
+        env.cookieName
+      ] as
+        | string
+        | undefined;
 
-    const userId = decoded.id || decoded.userId;
+    const bearerToken =
+      getBearerToken(request);
 
-    if (!userId) {
-      return res.status(401).json({
+    const token =
+      cookieToken ||
+      bearerToken;
+
+    if (!token) {
+      response.status(401).json({
         success: false,
-        message: "Invalid token payload",
+        message:
+          "Authentication is required.",
       });
+
+      return;
     }
 
-    req.userId = userId;
-    req.role = decoded.role;
+    const payload =
+      verifyToken(token);
+
+    request.userId =
+      payload.userId;
+
+    request.role =
+      payload.role;
+
+    request.auth = {
+      userId:
+        payload.userId,
+
+      role:
+        payload.role,
+    };
 
     next();
-  } catch (error) {
-    return res.status(401).json({
+  } catch {
+    response.status(401).json({
       success: false,
-      message: "Invalid or expired token",
+      message:
+        "Your session is invalid or has expired.",
     });
   }
 }

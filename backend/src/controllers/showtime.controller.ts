@@ -1,131 +1,185 @@
-import { Request, Response } from "express";
-import { ShowtimeService } from "../services/showtime.service";
+import {
+  NextFunction,
+  Request,
+  Response,
+} from "express";
 
-const service = new ShowtimeService();
+import {
+  CreateShowtimeSchema,
+  UpdateShowtimeSchema,
+} from "../dtos/showtime.dto";
 
-/* ===========================
-   PUBLIC
-=========================== */
+import type {
+  ShowtimeStatus,
+} from "../models/showtime.model";
 
-export async function listShowtimes(req: Request, res: Response) {
-  try {
-    const data = await service.listShowtimes({
-      movieId: req.query.movieId
-        ? String(req.query.movieId)
-        : undefined,
-      page: Number(req.query.page || 1),
-      limit: Number(req.query.limit || 10),
-    });
+import {
+  ShowtimeService,
+} from "../services/showtime.service";
 
-    return res.json({
-      success: true,
-      ...data,
-    });
-  } catch (error: any) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-  }
-}
+const showtimeService =
+  new ShowtimeService();
 
-export async function getShowtime(req: Request, res: Response) {
-  try {
-    const showtime = await service.getShowtime(req.params.id);
-
-    if (!showtime) {
-      return res.status(404).json({
-        success: false,
-        message: "Showtime not found",
-      });
-    }
-
-    return res.json({
-      success: true,
-      showtime,
-    });
-  } catch (error: any) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
-  }
-}
-
-/* ===========================
-   ADMIN
-=========================== */
-
-export async function adminCreateShowtime(
+export async function listShowtimes(
   req: Request,
-  res: Response
-) {
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
   try {
-    const showtime = await service.createShowtime(req.body);
+    const showtimes =
+      await showtimeService
+        .listShowtimes({
+          movieId:
+            typeof req.query
+              .movieId ===
+            "string"
+              ? req.query.movieId
+              : undefined,
 
-    return res.status(201).json({
+          cinemaId:
+            typeof req.query
+              .cinemaId ===
+            "string"
+              ? req.query.cinemaId
+              : undefined,
+
+          screenId:
+            typeof req.query
+              .screenId ===
+            "string"
+              ? req.query.screenId
+              : undefined,
+
+          date:
+            typeof req.query.date ===
+            "string"
+              ? req.query.date
+              : undefined,
+
+          status:
+            typeof req.query
+              .status ===
+            "string"
+              ? (req.query
+                  .status as ShowtimeStatus)
+              : undefined,
+
+          includeInactive:
+            req.query
+              .includeInactive ===
+            "true",
+        });
+
+    res.status(200).json({
       success: true,
-      showtime,
+      data: {
+        items: showtimes,
+      },
     });
-  } catch (error: any) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+  } catch (error) {
+    next(error);
   }
 }
 
-export async function adminUpdateShowtime(
+export async function getShowtime(
   req: Request,
-  res: Response
-) {
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
   try {
-    const showtime = await service.updateShowtime(
-      req.params.id,
-      req.body
-    );
+    const showtime =
+      await showtimeService
+        .getShowtime(
+          req.params.id,
+        );
 
-    if (!showtime) {
-      return res.status(404).json({
-        success: false,
-        message: "Showtime not found",
-      });
-    }
-
-    return res.json({
+    res.status(200).json({
       success: true,
-      showtime,
+      data: {
+        showtime,
+      },
     });
-  } catch (error: any) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+  } catch (error) {
+    next(error);
   }
 }
 
-export async function adminDeleteShowtime(
+export async function createShowtime(
   req: Request,
-  res: Response
-) {
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
   try {
-    const deleted = await service.deleteShowtime(req.params.id);
+    const data =
+      CreateShowtimeSchema.parse(
+        req.body,
+      );
 
-    if (!deleted) {
-      return res.status(404).json({
-        success: false,
-        message: "Showtime not found",
-      });
-    }
+    const showtime =
+      await showtimeService
+        .createShowtime(data);
 
-    return res.json({
+    res.status(201).json({
       success: true,
-      message: "Showtime deleted",
+      message:
+        "Showtime created successfully",
+      data: {
+        showtime,
+      },
     });
-  } catch (error: any) {
-    return res.status(500).json({
-      success: false,
-      message: error.message,
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function updateShowtime(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const data =
+      UpdateShowtimeSchema.parse(
+        req.body,
+      );
+
+    const showtime =
+      await showtimeService
+        .updateShowtime(
+          req.params.id,
+          data,
+        );
+
+    res.status(200).json({
+      success: true,
+      message:
+        "Showtime updated successfully",
+      data: {
+        showtime,
+      },
     });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function deleteShowtime(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    await showtimeService
+      .deleteShowtime(
+        req.params.id,
+      );
+
+    res.status(200).json({
+      success: true,
+      message:
+        "Showtime deleted successfully",
+    });
+  } catch (error) {
+    next(error);
   }
 }

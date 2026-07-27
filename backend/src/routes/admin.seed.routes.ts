@@ -1,15 +1,36 @@
-import { Router } from "express";
-import { requireAuth } from "../middlewares/auth.middlewares";
-import { requireAdmin } from "../middlewares/admin.middleware";
-import { seedBookings } from "../controllers/seed.controller";
+import {
+  Router,
+} from "express";
 
-const router = Router();
+import {
+  seedBookings,
+} from "../controllers/seed-bookings.controller";
 
-router.use(requireAuth, requireAdmin);
+import {
+  requireAdmin,
+} from "../middlewares/admin.middleware";
 
+import {
+  requireAuth,
+} from "../middlewares/auth.middlewares";
 
-// POST /api/admin/seed/bookings?count=15
-router.post("/bookings", seedBookings);
+const router =
+  Router();
 
+router.use(
+  requireAuth,
+  requireAdmin,
+);
+
+/*
+ * POST /api/admin/seed/bookings
+ *
+ * Optional query:
+ * ?count=10
+ */
+router.post(
+  "/bookings",
+  seedBookings,
+);
 
 export default router;

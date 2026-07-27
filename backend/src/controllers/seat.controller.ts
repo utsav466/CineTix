@@ -1,61 +1,38 @@
-import { Request, Response } from "express";
-import { SeatService } from "../services/seat.service";
+import {
+  NextFunction,
+  Request,
+  Response,
+} from "express";
 
-const service = new SeatService();
+import {
+  AuthRequest,
+} from "../middlewares/auth.middlewares";
 
-export async function getSeats(req: Request, res: Response) {
-  const seats = await service.getSeats(req.params.showtimeId);
+import {
+  BookingService,
+} from "../services/booking.service";
 
-  res.json({
-    success: true,
-    seats,
-  });
-}
+const bookingService =
+  new BookingService();
 
-export async function reserveSeat(req: Request, res: Response) {
-  const seat = await service.reserveSeat(req.params.id);
+export async function getShowtimeSeats(
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const result =
+      await bookingService
+        .getSeatAvailability(
+          req.params.showtimeId,
+          req.auth?.userId,
+        );
 
-  if (!seat) {
-    return res.status(404).json({
-      success: false,
-      message: "Seat not found",
+    res.status(200).json({
+      success: true,
+      data: result,
     });
+  } catch (error) {
+    next(error);
   }
-
-  res.json({
-    success: true,
-    seat,
-  });
-}
-
-export async function bookSeat(req: Request, res: Response) {
-  const seat = await service.bookSeat(req.params.id);
-
-  if (!seat) {
-    return res.status(404).json({
-      success: false,
-      message: "Seat not found",
-    });
-  }
-
-  res.json({
-    success: true,
-    seat,
-  });
-}
-
-export async function releaseSeat(req: Request, res: Response) {
-  const seat = await service.releaseSeat(req.params.id);
-
-  if (!seat) {
-    return res.status(404).json({
-      success: false,
-      message: "Seat not found",
-    });
-  }
-
-  res.json({
-    success: true,
-    seat,
-  });
 }

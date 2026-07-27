@@ -1,14 +1,41 @@
-import { Router } from "express";
-import { requireAuth } from "../middlewares/auth.middlewares";
-import { requireAdmin } from "../middlewares/admin.middleware";
-import { adminDashboardStats } from "../controllers/dashboard.controller";
-// import { adminDashboardStats } from "../controllers/dashboard.controller"; 
+import {
+  Router,
+} from "express";
 
-const router = Router();
+import {
+  adminDashboardStats,
+} from "../controllers/dashboard.controller";
 
-router.use(requireAuth, requireAdmin);
+import {
+  requireAdmin,
+} from "../middlewares/admin.middleware";
 
-// GET /api/admin/dashboard/stats
-router.get("/stats", adminDashboardStats);
+import {
+  requireAuth,
+} from "../middlewares/auth.middlewares";
+
+const router =
+  Router();
+
+router.use(
+  requireAuth,
+  requireAdmin,
+);
+
+/*
+ * Main endpoint used by the frontend.
+ */
+router.get(
+  "/",
+  adminDashboardStats,
+);
+
+/*
+ * Backward-compatible endpoint.
+ */
+router.get(
+  "/stats",
+  adminDashboardStats,
+);
 
 export default router;
