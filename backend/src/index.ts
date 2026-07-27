@@ -1,164 +1,176 @@
-import express, { Application, Request, Response } from "express";
-import cors from "cors";
-import path from "path";
-import cookieParser from "cookie-parser";
+import type {
+  Server,
+} from "node:http";
 
-import { connectDB } from "./database/mongodb";
-import { PORT } from "./config";
+import app from "./app";
 
-// Seed Controllers
-import { seedMovies } from "./controllers/movie.seed.controller";
-import { seedCinemas } from "./controllers/cinema.seed.controller";
-import { seedShowtimes } from "./controllers/showtime.seed.controller";
+import {
+  env,
+} from "./config";
+import { connectDB, disconnectDB } from "./database/mongodb";
 
-// =========================
-// Authentication
-// =========================
-import authRoutes from "./routes/auth.route";
-import userRoutes from "./routes/user.route";
-import adminUserRoutes from "./routes/admin.user.routes";
 
-// =========================
-// Movies
-// =========================
-import movieRoutes from "./routes/movie.route";
-import adminMovieRoutes from "./routes/admin.movie.routes";
+let server:
+  Server | null = null;
 
-// =========================
-// Cinemas
-// =========================
-import cinemaRoutes from "./routes/cinema.route";
+let shuttingDown =
+  false;
 
-// =========================
-// Showtimes
-// =========================
-import showtimeRoutes from "./routes/showtime.route";
-
-// =========================
-// Seats
-// =========================
-import seatRoutes from "./routes/seat.route";
-
-// =========================
-// Bookings
-// =========================
-import bookingRoutes from "./routes/booking.route";
-import adminBookingRoutes from "./routes/admin.booking.routes";
-
-// =========================
-// Admin
-// =========================
-import adminDashboardRoutes from "./routes/admin.dashboard.routes";
-import adminSeedRoutes from "./routes/admin.seed.routes";
-import adminSettingsRoutes from "./routes/admin.settings.routes";
-import adminReportsRoutes from "./routes/admin.reports.routes";
-
-// =========================
-// Payments
-// =========================
-import paymentRoutes from "./routes/payment.route";
-
-const app: Application = express();
-
-app.use(
-  cors({
-    origin: [
-      "http://localhost:3000",
-      "http://localhost:3005",
-    ],
-    credentials: true,
-  })
-);
-
-app.use(cookieParser());
-app.use(express.json());
-
-// =========================
-// Seed Routes
-// =========================
-
-app.get("/api/seed/movies", seedMovies);
-app.get("/api/seed/cinemas", seedCinemas);
-app.get("/api/seed/showtimes", seedShowtimes);
-
-// =========================
-// Static Uploads
-// =========================
-
-app.use(
-  "/uploads",
-  express.static(path.join(process.cwd(), "uploads"))
-);
-
-// =========================
-// API Routes
-// =========================
-
-// Authentication
-app.use("/api/auth", authRoutes);
-
-// Users
-app.use("/api/users", userRoutes);
-app.use("/api/admin/users", adminUserRoutes);
-
-// Movies
-app.use("/api/movies", movieRoutes);
-app.use("/api/admin/movies", adminMovieRoutes);
-
-// Cinemas
-app.use("/api/cinemas", cinemaRoutes);
-
-// Showtimes
-app.use("/api/showtimes", showtimeRoutes);
-
-// Seats
-app.use("/api/seats", seatRoutes);
-
-// Bookings
-app.use("/api/bookings", bookingRoutes);
-app.use("/api/admin/bookings", adminBookingRoutes);
-
-// Admin
-app.use("/api/admin/dashboard", adminDashboardRoutes);
-app.use("/api/admin/seed", adminSeedRoutes);
-app.use("/api/admin/settings", adminSettingsRoutes);
-app.use("/api/admin/reports", adminReportsRoutes);
-
-// Payments
-app.use("/api/payments", paymentRoutes);
-
-// =========================
-// Root
-// =========================
-
-app.get("/", (_: Request, res: Response) => {
-  res.status(200).json({
-    success: true,
-    message: "Welcome to CineTix API 🚀",
-  });
-});
-
-// =========================
-// Start Server
-// =========================
-
-async function startServer() {
+async function startServer():
+  Promise<void> {
   try {
+    console.log(
+      "Starting CineTix backend...",
+    );
+
+    console.log(
+      `Environment: ${env.nodeEnv}`,
+    );
+
+    console.log(
+      `MongoDB URI configured: ${Boolean(
+        env.mongodbUri,
+      )}`,
+    );
+
     await connectDB();
 
-    app.listen(PORT, () => {
-      console.log(
-        `🚀 CineTix API running on http://localhost:${PORT}`
+    server =
+      app.listen(
+        env.port,
+        "0.0.0.0",
+        () => {
+          console.log(
+            `✅ CineTix API running at http://localhost:${env.port}`,
+          );
+
+          console.log(
+            `✅ Health endpoint: http://localhost:${env.port}/api/health`,
+          );
+
+          console.log(
+            `✅ Frontend origin: ${env.frontendUrl}`,
+          );
+        },
       );
-    });
+
+    server.on(
+      "error",
+      (error) => {
+        console.error(
+          "HTTP server error:",
+          error,
+        );
+
+        process.exit(1);
+      },
+    );
   } catch (error) {
-    console.error("Failed to start server:", error);
+    console.error(
+      "❌ Failed to start CineTix backend:",
+      error,
+    );
+
     process.exit(1);
   }
 }
 
-if (process.env.NODE_ENV !== "test") {
-  startServer();
+async function shutdown(
+  signal: string,
+): Promise<void> {
+  if (shuttingDown) {
+    return;
+  }
+
+  shuttingDown =
+    true;
+
+  console.log(
+    `\n${signal} received. Shutting down...`,
+  );
+
+  try {
+    if (
+      server &&
+      server.listening
+    ) {
+      await new Promise<void>(
+        (
+          resolve,
+          reject,
+        ) => {
+          server?.close(
+            (error) => {
+              if (error) {
+                reject(
+                  error,
+                );
+
+                return;
+              }
+
+              resolve();
+            },
+          );
+        },
+      );
+
+      console.log(
+        "HTTP server closed",
+      );
+    }
+
+    await disconnectDB();
+
+    process.exit(0);
+  } catch (error) {
+    console.error(
+      "Shutdown error:",
+      error,
+    );
+
+    process.exit(1);
+  }
 }
 
-export default app;
+process.on(
+  "SIGINT",
+  () => {
+    void shutdown(
+      "SIGINT",
+    );
+  },
+);
+
+process.on(
+  "SIGTERM",
+  () => {
+    void shutdown(
+      "SIGTERM",
+    );
+  },
+);
+
+process.on(
+  "unhandledRejection",
+  (reason) => {
+    console.error(
+      "Unhandled promise rejection:",
+      reason,
+    );
+  },
+);
+
+process.on(
+  "uncaughtException",
+  (error) => {
+    console.error(
+      "Uncaught exception:",
+      error,
+    );
+
+    process.exit(1);
+  },
+);
+
+void startServer();

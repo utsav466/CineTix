@@ -1,10 +1,133 @@
-import dotenv from "dotenv";
-dotenv.config();
+import "dotenv/config";
 
-export const PORT: number = process.env.PORT ? parseInt(process.env.PORT) : 3000;
+function getRequiredString(
+  name: string,
+  fallback?: string,
+): string {
+  const value =
+    process.env[name] ??
+    fallback;
 
-export const MONGODB_URI: string =
-  process.env.MONGODB_URI || "mongodb+srv://utsavthapa901_db_user:UTSAV123@cluster0.vipkhri.mongodb.net/bodh_auth?retryWrites=true&w=majority";
+  if (
+    !value ||
+    !value.trim()
+  ) {
+    throw new Error(
+      `Missing required environment variable: ${name}`,
+    );
+  }
 
-export const JWT_SECRET: string =
-  process.env.JWT_SECRET || "super_secret_change_me";
+  return value.trim();
+}
+
+function getPositiveNumber(
+  name: string,
+  fallback: number,
+): number {
+  const rawValue =
+    process.env[name];
+
+  if (
+    rawValue ===
+      undefined ||
+    rawValue.trim() ===
+      ""
+  ) {
+    return fallback;
+  }
+
+  const parsedValue =
+    Number(rawValue);
+
+  if (
+    !Number.isFinite(
+      parsedValue,
+    ) ||
+    parsedValue <= 0
+  ) {
+    throw new Error(
+      `${name} must be a positive number.`,
+    );
+  }
+
+  return parsedValue;
+}
+
+const nodeEnv =
+  process.env.NODE_ENV ??
+  "development";
+
+export const env = {
+  nodeEnv,
+
+  isDevelopment:
+    nodeEnv ===
+    "development",
+
+  isProduction:
+    nodeEnv ===
+    "production",
+
+  isTest:
+    nodeEnv ===
+    "test",
+
+  port:
+    getPositiveNumber(
+      "PORT",
+      5001,
+    ),
+
+  mongodbUri:
+    getRequiredString(
+      "MONGODB_URI",
+    ),
+
+  jwtSecret:
+    getRequiredString(
+      "JWT_SECRET",
+    ),
+
+  jwtExpiresIn:
+    process.env
+      .JWT_EXPIRES_IN ??
+    "7d",
+
+  frontendUrl:
+    getRequiredString(
+      "FRONTEND_URL",
+      "http://localhost:3000",
+    ),
+
+  backendUrl:
+    getRequiredString(
+      "BACKEND_URL",
+      "http://localhost:5001",
+    ),
+
+  cookieName:
+    process.env
+      .COOKIE_NAME ??
+    "cinetix_token",
+
+  cookieMaxAgeDays:
+    getPositiveNumber(
+      "COOKIE_MAX_AGE_DAYS",
+      7,
+    ),
+
+  khaltiSecretKey:
+    process.env
+      .KHALTI_SECRET_KEY ??
+    "",
+
+  khaltiBaseUrl:
+    process.env
+      .KHALTI_BASE_URL ??
+    "https://dev.khalti.com/api/v2",
+
+  uploadDirectory:
+    process.env
+      .UPLOAD_DIRECTORY ??
+    "uploads",
+} as const;

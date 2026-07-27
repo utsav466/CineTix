@@ -1,11 +1,21 @@
 export class HttpError extends Error {
-  statusCode: number;
+  public readonly statusCode: number;
+  public readonly details?: unknown;
+  public readonly isOperational: boolean;
 
-  constructor(statusCode: number, message: string) {
+  constructor(
+    statusCode: number,
+    message: string,
+    details?: unknown,
+  ) {
     super(message);
-    this.statusCode = statusCode;
 
-    // Restore prototype chain (important when extending built-ins in TS)
+    this.name = "HttpError";
+    this.statusCode = statusCode;
+    this.details = details;
+    this.isOperational = true;
+
     Object.setPrototypeOf(this, HttpError.prototype);
+    Error.captureStackTrace(this, this.constructor);
   }
 }
