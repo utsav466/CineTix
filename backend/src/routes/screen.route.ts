@@ -3,12 +3,12 @@ import {
 } from "express";
 
 import {
-  adminCreateCinema,
-  adminDeleteCinema,
-  adminUpdateCinema,
-  getCinema,
-  listCinemas,
-} from "../controllers/cinema.controller";
+  createScreen,
+  deleteScreen,
+  getScreen,
+  listScreens,
+  updateScreen,
+} from "../controllers/screen.controller";
 
 import {
   requireAdmin,
@@ -18,48 +18,37 @@ import {
   requireAuth,
 } from "../middlewares/auth.middlewares";
 
-import {
-  cinemaImageUpload,
-} from "../middlewares/upload.middleware";
-
-const router =
-  Router();
+const router = Router();
 
 router.get(
   "/",
-  listCinemas,
+  listScreens,
 );
 
 router.get(
   "/:id",
-  getCinema,
+  getScreen,
 );
 
 router.post(
   "/",
   requireAuth,
   requireAdmin,
-  cinemaImageUpload.single(
-    "image",
-  ),
-  adminCreateCinema,
+  createScreen,
 );
 
 router.patch(
   "/:id",
   requireAuth,
   requireAdmin,
-  cinemaImageUpload.single(
-    "image",
-  ),
-  adminUpdateCinema,
+  updateScreen,
 );
 
 router.delete(
   "/:id",
   requireAuth,
   requireAdmin,
-  adminDeleteCinema,
+  deleteScreen,
 );
 
 export default router;
