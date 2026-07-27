@@ -1,474 +1,406 @@
-import { Request, Response } from "express";
-import { BookingModel } from "../models/booking.model";
+import {
+  NextFunction,
+  Request,
+  Response,
+} from "express";
 
+import {
+  BookingModel,
+} from "../models/booking.model";
 
-// NPR conversion (keep if your frontend expects NPR)
-const USD_TO_NPR = 133;
+type SalesRange =
+  | "7d"
+  | "30d"
+  | "90d";
 
+type SummaryAggregation = {
+  _id: null;
+  revenue: number;
+  bookings: number;
+  confirmed: number;
+  cancelled: number;
+};
 
-// yyyy-mm-dd helper
-function toDayString(d: Date) {
+type DailyAggregation = {
+  date: string;
+  revenue: number;
+  bookings: number;
+  confirmed: number;
+};
 
-  const yyyy = d.getFullYear();
+type TopMovieAggregation = {
+  title: string;
+  bookings: number;
+  revenue: number;
+};
 
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
+function normalizeRange(
+  value: unknown,
+): SalesRange {
+  if (
+    value === "7d" ||
+    value === "90d"
+  ) {
+    return value;
+  }
 
-  const dd = String(d.getDate()).padStart(2, "0");
-
-  return `${yyyy}-${mm}-${dd}`;
-
+  return "30d";
 }
 
+function rangeDays(
+  range: SalesRange,
+): number {
+  if (range === "7d") {
+    return 7;
+  }
 
-
-function rangeToDays(range: string) {
-
-  const r = (range || "").toLowerCase();
-
-  if (r === "7d") return 7;
-
-  if (r === "90d") return 90;
+  if (range === "90d") {
+    return 90;
+  }
 
   return 30;
-
 }
 
+function dayString(
+  date: Date,
+): string {
+  return date
+    .toISOString()
+    .slice(0, 10);
+}
 
-
-// GET /api/admin/reports/sales
 export async function adminSalesReport(
-  req: Request,
-  res: Response
-) {
-
+  request: Request,
+  response: Response,
+  next: NextFunction,
+): Promise<void> {
   try {
-
+    const range =
+      normalizeRange(
+        request.query.range,
+      );
 
     const days =
-      rangeToDays(String(req.query.range ?? "30d"));
+      rangeDays(range);
 
+    const end =
+      new Date();
 
+    end.setHours(
+      23,
+      59,
+      59,
+      999,
+    );
 
-    const end = new Date();
+    const start =
+      new Date(end);
 
-    const start = new Date();
+    start.setDate(
+      end.getDate() -
+        (days - 1),
+    );
 
+    start.setHours(
+      0,
+      0,
+      0,
+      0,
+    );
 
-
-    start.setDate(end.getDate() - (days - 1));
-
-    start.setHours(0,0,0,0);
-
-
-
-    const matchBase:any = {
-
-      status:{
-        $ne:"Cancelled"
+    const dateMatch = {
+      createdAt: {
+        $gte: start,
+        $lte: end,
       },
-
-      createdAt:{
-        $gte:start,
-        $lte:end
-      }
-
     };
-
-
 
     const [
-      summaryAgg,
-      dailyAgg,
-      topMoviesAgg
+      summaryResult,
+      dailyResult,
+      topMovieResult,
+    ] =
+      await Promise.all([
+        BookingModel.aggregate<SummaryAggregation>([
+          {
+            $match:
+              dateMatch,
+          },
 
-    ] = await Promise.all([
+          {
+            $group: {
+              _id: null,
 
+              revenue: {
+                $sum: {
+                  $cond: [
+                    {
+                      $eq: [
+                        "$paymentStatus",
+                        "paid",
+                      ],
+                    },
 
+                    "$totalAmount",
 
-      // SUMMARY
-      BookingModel.aggregate([
-
-        {
-          $match:matchBase
-        },
-
-
-        {
-          $group:{
-
-            _id:null,
-
-            revenue:{
-              $sum:"$totalAmount"
-            },
-
-
-            bookings:{
-              $sum:1
-            },
-
-
-            confirmed:{
-              $sum:{
-                $cond:[
-                  {
-                    $eq:[
-                      "$status",
-                      "Confirmed"
-                    ]
-                  },
-                  1,
-                  0
-                ]
-              }
-            }
-
-          }
-
-        }
-
-      ]),
-
-
-
-
-
-      // DAILY BOOKINGS
-      BookingModel.aggregate([
-
-
-        {
-          $match:matchBase
-        },
-
-
-        {
-
-          $group:{
-
-            _id:{
-
-              y:{
-                $year:"$createdAt"
-              },
-
-              m:{
-                $month:"$createdAt"
-              },
-
-              d:{
-                $dayOfMonth:"$createdAt"
-              }
-
-            },
-
-
-            revenue:{
-              $sum:"$totalAmount"
-            },
-
-
-            bookings:{
-              $sum:1
-            }
-
-
-          }
-
-        },
-
-
-        {
-
-          $project:{
-
-            _id:0,
-
-
-            date:{
-
-              $dateToString:{
-
-                date:{
-
-                  $dateFromParts:{
-
-                    year:"$_id.y",
-
-                    month:"$_id.m",
-
-                    day:"$_id.d"
-
-                  }
-
+                    0,
+                  ],
                 },
+              },
 
-                format:"%Y-%m-%d"
+              bookings: {
+                $sum: 1,
+              },
 
-              }
+              confirmed: {
+                $sum: {
+                  $cond: [
+                    {
+                      $eq: [
+                        "$status",
+                        "confirmed",
+                      ],
+                    },
 
+                    1,
+
+                    0,
+                  ],
+                },
+              },
+
+              cancelled: {
+                $sum: {
+                  $cond: [
+                    {
+                      $eq: [
+                        "$status",
+                        "cancelled",
+                      ],
+                    },
+
+                    1,
+
+                    0,
+                  ],
+                },
+              },
             },
+          },
+        ]),
 
+        BookingModel.aggregate<DailyAggregation>([
+          {
+            $match:
+              dateMatch,
+          },
 
-            revenue:1,
+          {
+            $group: {
+              _id: {
+                $dateToString: {
+                  format:
+                    "%Y-%m-%d",
 
-            bookings:1
+                  date:
+                    "$createdAt",
+                },
+              },
 
+              revenue: {
+                $sum: {
+                  $cond: [
+                    {
+                      $eq: [
+                        "$paymentStatus",
+                        "paid",
+                      ],
+                    },
 
-          }
+                    "$totalAmount",
 
-        },
+                    0,
+                  ],
+                },
+              },
 
+              bookings: {
+                $sum: 1,
+              },
 
-        {
-          $sort:{
-            date:1
-          }
-        }
+              confirmed: {
+                $sum: {
+                  $cond: [
+                    {
+                      $eq: [
+                        "$status",
+                        "confirmed",
+                      ],
+                    },
 
+                    1,
 
-      ]),
-
-
-
-
-
-      // TOP MOVIES
-      BookingModel.aggregate([
-
-
-        {
-          $match:matchBase
-        },
-
-
-        {
-
-          $lookup:{
-
-            from:"movies",
-
-            localField:"movieId",
-
-            foreignField:"_id",
-
-            as:"movie"
-
-          }
-
-        },
-
-
-        {
-          $unwind:"$movie"
-        },
-
-
-        {
-
-          $group:{
-
-            _id:"$movie.title",
-
-            bookings:{
-              $sum:1
+                    0,
+                  ],
+                },
+              },
             },
+          },
 
+          {
+            $project: {
+              _id: 0,
+              date: "$_id",
+              revenue: 1,
+              bookings: 1,
+              confirmed: 1,
+            },
+          },
 
-            revenue:{
-              $sum:"$totalAmount"
-            }
+          {
+            $sort: {
+              date: 1,
+            },
+          },
+        ]),
 
-          }
+        BookingModel.aggregate<TopMovieAggregation>([
+          {
+            $match: {
+              ...dateMatch,
+              paymentStatus:
+                "paid",
+            },
+          },
 
-        },
+          {
+            $lookup: {
+              from: "movies",
+              localField:
+                "movieId",
+              foreignField:
+                "_id",
+              as: "movie",
+            },
+          },
 
+          {
+            $unwind:
+              "$movie",
+          },
 
-        {
-          $sort:{
-            bookings:-1
-          }
-        },
+          {
+            $group: {
+              _id:
+                "$movie.title",
 
+              bookings: {
+                $sum: 1,
+              },
 
-        {
-          $limit:5
-        },
+              revenue: {
+                $sum:
+                  "$totalAmount",
+              },
+            },
+          },
 
+          {
+            $sort: {
+              revenue: -1,
+            },
+          },
 
-        {
+          {
+            $limit: 5,
+          },
 
-          $project:{
+          {
+            $project: {
+              _id: 0,
+              title: "$_id",
+              bookings: 1,
+              revenue: 1,
+            },
+          },
+        ]),
+      ]);
 
-            _id:0,
+    const summary =
+      summaryResult[0] ?? {
+        revenue: 0,
+        bookings: 0,
+        confirmed: 0,
+        cancelled: 0,
+      };
 
-            title:"$_id",
-
-            bookings:1,
-
-            revenue:1
-
-          }
-
-        }
-
-
-      ])
-
-    ]);
-
-
-
-
-
-    const summary = summaryAgg?.[0] ?? {
-
-      revenue:0,
-
-      bookings:0,
-
-      confirmed:0
-
-    };
-
-
-
-
-
-    const dailyMap =
-      new Map<string, any>();
-
-
-    for(const d of dailyAgg){
-
-      dailyMap.set(
-        d.date,
-        {
-
-          date:d.date,
-
-          revenue:
-            d.revenue * USD_TO_NPR,
-
-          bookings:d.bookings
-
-        }
+    const dailyLookup =
+      new Map(
+        dailyResult.map(
+          (item) => [
+            item.date,
+            item,
+          ],
+        ),
       );
 
-    }
+    const daily:
+      DailyAggregation[] = [];
 
+    for (
+      let index = 0;
+      index < days;
+      index += 1
+    ) {
+      const date =
+        new Date(start);
 
-
-
-    const daily:any[]=[];
-
-
-
-    for(let i=0;i<days;i++){
-
-
-      const dt=new Date(start);
-
-
-      dt.setDate(
-        start.getDate()+i
+      date.setDate(
+        start.getDate() +
+          index,
       );
-
 
       const key =
-        toDayString(dt);
-
-
+        dayString(date);
 
       daily.push(
-
-        dailyMap.get(key) ||
-
-        {
-
-          date:key,
-
-          revenue:0,
-
-          bookings:0
-
-        }
-
+        dailyLookup.get(
+          key,
+        ) ?? {
+          date: key,
+          revenue: 0,
+          bookings: 0,
+          confirmed: 0,
+        },
       );
-
     }
 
+    response.status(200).json({
+      success: true,
 
-
-
-
-    const topMovies =
-      (topMoviesAgg || []).map((m:any)=>({
-
-        ...m,
+      data: {
+        range,
+        currency: "NPR",
 
         revenue:
-          m.revenue * USD_TO_NPR
-
-      }));
-
-
-
-
-
-    return res.status(200).json({
-
-      success:true,
-
-      currency:"Rs",
-
-      data:{
-
-
-        range:`${days}d`,
-
-
-        revenue:
-          summary.revenue * USD_TO_NPR,
-
+          summary.revenue,
 
         bookings:
-          summary.bookings ?? 0,
-
+          summary.bookings,
 
         confirmed:
-          summary.confirmed ?? 0,
+          summary.confirmed,
 
-
-        cancelled:0,
-
+        cancelled:
+          summary.cancelled,
 
         daily,
 
-
-        topMovies
-
-
-      }
-
+        topMovies:
+          topMovieResult,
+      },
     });
-
-
-
-  }catch(err:any){
-
-
-    return res.status(500).json({
-
-      success:false,
-
-      message:
-        err.message ||
-        "Failed to load sales report"
-
-    });
-
-
+  } catch (error) {
+    next(error);
   }
-
 }

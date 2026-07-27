@@ -1,19 +1,16 @@
-import { Router } from "express";
 import {
-  getSeats,
-  reserveSeat,
-  bookSeat,
-  releaseSeat,
+  Router,
+} from "express";
+
+import {
+  getShowtimeSeats,
 } from "../controllers/seat.controller";
 
 const router = Router();
 
-router.get("/:showtimeId", getSeats);
-
-router.patch("/:id/reserve", reserveSeat);
-
-router.patch("/:id/book", bookSeat);
-
-router.patch("/:id/release", releaseSeat);
+router.get(
+  "/showtime/:showtimeId",
+  getShowtimeSeats,
+);
 
 export default router;

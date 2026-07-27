@@ -1,5 +1,5 @@
 import Image from "next/image";
-import type { Cinema } from "@/lib/api/cinetix";
+import type { Cinema } from "@/lib/api";
 
 type CinemaCardProps = {
   cinema: Cinema;

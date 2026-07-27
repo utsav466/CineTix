@@ -1,534 +1,621 @@
 "use client";
 
-import Image from "next/image";
 import {
-  notFound,
+  ArrowLeft,
+  CalendarDays,
+  Clock3,
+  Languages,
+  MapPin,
+  Play,
+  Star,
+} from "lucide-react";
+
+import Link from "next/link";
+
+import {
   useParams,
-  useRouter,
 } from "next/navigation";
+
 import {
   useEffect,
   useMemo,
   useState,
 } from "react";
 
+import CustomerHeader from "@/components/layout/CustomerHeader";
+
 import {
-  getAvailableCinemasForMovie,
-  getAvailableDatesForMovie,
-  getMovieById,
-  getMovieShowtimesAtCinema,
-} from "@/lib/api/cinetix";
+  getCustomerMovie,
+  getCustomerShowtimes,
+} from "@/lib/api/customer.api";
 
-type DateOption = {
-  value: string;
-  dayNumber: string;
-  dayName: string;
-  monthName: string;
-};
+import {
+  getApiErrorMessage,
+} from "@/lib/api/client";
 
-function createDateOption(
-  dateValue: string,
-): DateOption {
-  const date = new Date(
-    `${dateValue}T00:00:00`,
+import type {
+  CustomerMovie,
+  CustomerShowtime,
+} from "@/lib/api/customer.types";
+
+function objectName(
+  value:
+    | string
+    | {
+        name?: string;
+        title?: string;
+      },
+): string {
+  if (
+    typeof value === "string"
+  ) {
+    return "Cinema";
+  }
+
+  return (
+    value.name ||
+    value.title ||
+    "Cinema"
   );
+}
 
-  return {
-    value: dateValue,
-
-    dayNumber: new Intl.DateTimeFormat(
-      "en-US",
-      {
-        day: "2-digit",
+function objectCity(
+  value:
+    | string
+    | {
+        city?: string;
       },
-    ).format(date),
+): string {
+  if (
+    typeof value === "string"
+  ) {
+    return "";
+  }
 
-    dayName: new Intl.DateTimeFormat(
-      "en-US",
-      {
-        weekday: "long",
-      },
-    ).format(date),
+  return value.city || "";
+}
 
-    monthName: new Intl.DateTimeFormat(
-      "en-US",
-      {
-        month: "short",
-      },
-    ).format(date),
-  };
+function formatDateValue(
+  date: Date,
+): string {
+  return [
+    date.getFullYear(),
+    String(
+      date.getMonth() + 1,
+    ).padStart(2, "0"),
+    String(
+      date.getDate(),
+    ).padStart(2, "0"),
+  ].join("-");
 }
 
 export default function MovieDetailsPage() {
-  const params = useParams<{
-    movieId: string;
-  }>();
+  const params =
+    useParams<{
+      movieId: string;
+    }>();
 
-  const router = useRouter();
+  const [
+    movie,
+    setMovie,
+  ] =
+    useState<CustomerMovie | null>(
+      null,
+    );
 
-  const movie = getMovieById(
-    params.movieId,
-  );
-
-  const dateOptions =
-    useMemo<DateOption[]>(() => {
-      if (!movie) {
-        return [];
-      }
-
-      return getAvailableDatesForMovie(
-        movie.id,
-      ).map(createDateOption);
-    }, [movie]);
+  const [
+    showtimes,
+    setShowtimes,
+  ] =
+    useState<CustomerShowtime[]>(
+      [],
+    );
 
   const [
     selectedDate,
     setSelectedDate,
-  ] = useState("");
+  ] =
+    useState(
+      formatDateValue(
+        new Date(),
+      ),
+    );
 
-  const [
-    selectedCinemaId,
-    setSelectedCinemaId,
-  ] = useState("");
+  const [loading, setLoading] =
+    useState(true);
 
-  const [
-    selectedShowtimeId,
-    setSelectedShowtimeId,
-  ] = useState("");
+  const [error, setError] =
+    useState("");
 
-  const availableCinemas = useMemo(
-    () => {
-      if (!movie || !selectedDate) {
-        return [];
-      }
+  const dateOptions =
+    useMemo(
+      () =>
+        Array.from(
+          {
+            length: 7,
+          },
+          (_, index) => {
+            const date =
+              new Date();
 
-      return getAvailableCinemasForMovie(
-        movie.id,
-        selectedDate,
-      );
-    },
-    [movie, selectedDate],
-  );
+            date.setDate(
+              date.getDate() +
+                index,
+            );
 
-  const availableShowtimes = useMemo(
-    () => {
-      if (
-        !movie ||
-        !selectedDate ||
-        !selectedCinemaId
-      ) {
-        return [];
-      }
+            return {
+              value:
+                formatDateValue(
+                  date,
+                ),
 
-      return getMovieShowtimesAtCinema(
-        movie.id,
-        selectedCinemaId,
-        selectedDate,
-      );
-    },
-    [
-      movie,
-      selectedCinemaId,
-      selectedDate,
-    ],
-  );
+              weekday:
+                date.toLocaleDateString(
+                  "en-US",
+                  {
+                    weekday:
+                      "short",
+                  },
+                ),
 
-  useEffect(() => {
-    if (dateOptions.length === 0) {
-      setSelectedDate("");
-      setSelectedCinemaId("");
-      setSelectedShowtimeId("");
-      return;
-    }
+              day:
+                date.toLocaleDateString(
+                  "en-US",
+                  {
+                    day:
+                      "numeric",
+                  },
+                ),
 
-    const dateStillExists =
-      dateOptions.some(
-        (date) =>
-          date.value === selectedDate,
-      );
-
-    if (!dateStillExists) {
-      setSelectedDate(
-        dateOptions[0].value,
-      );
-
-      setSelectedCinemaId("");
-      setSelectedShowtimeId("");
-    }
-  }, [dateOptions, selectedDate]);
+              month:
+                date.toLocaleDateString(
+                  "en-US",
+                  {
+                    month:
+                      "short",
+                  },
+                ),
+            };
+          },
+        ),
+      [],
+    );
 
   useEffect(() => {
-    if (
-      availableCinemas.length === 0
-    ) {
-      setSelectedCinemaId("");
-      setSelectedShowtimeId("");
-      return;
+    async function loadMovie() {
+      try {
+        setLoading(true);
+        setError("");
+
+        const [
+          movieResult,
+          showtimeResult,
+        ] =
+          await Promise.all([
+            getCustomerMovie(
+              params.movieId,
+            ),
+
+            getCustomerShowtimes({
+              movieId:
+                params.movieId,
+
+              date:
+                selectedDate,
+            }),
+          ]);
+
+        setMovie(movieResult);
+
+        setShowtimes(
+          showtimeResult,
+        );
+      } catch (loadError) {
+        setError(
+          getApiErrorMessage(
+            loadError,
+            "Unable to load movie details.",
+          ),
+        );
+      } finally {
+        setLoading(false);
+      }
     }
 
-    const cinemaStillExists =
-      availableCinemas.some(
-        (cinema) =>
-          cinema.id ===
-          selectedCinemaId,
-      );
-
-    if (!cinemaStillExists) {
-      setSelectedCinemaId(
-        availableCinemas[0].id,
-      );
-
-      setSelectedShowtimeId("");
-    }
+    void loadMovie();
   }, [
-    availableCinemas,
-    selectedCinemaId,
+    params.movieId,
+    selectedDate,
   ]);
 
+  const groupedShowtimes =
+    useMemo(() => {
+      const groups =
+        new Map<
+          string,
+          CustomerShowtime[]
+        >();
+
+      for (
+        const showtime of
+        showtimes
+      ) {
+        const key =
+          typeof showtime.cinemaId ===
+          "string"
+            ? showtime.cinemaId
+            : showtime.cinemaId.id;
+
+        const current =
+          groups.get(key) ||
+          [];
+
+        current.push(
+          showtime,
+        );
+
+        groups.set(
+          key,
+          current,
+        );
+      }
+
+      return Array.from(
+        groups.values(),
+      );
+    }, [showtimes]);
+
+  if (loading && !movie) {
+    return (
+      <main className="min-h-screen bg-[#07080c] text-white">
+        <CustomerHeader />
+
+        <div className="mx-auto max-w-7xl px-5 py-16 text-center text-white/45">
+          Loading movie...
+        </div>
+      </main>
+    );
+  }
+
   if (!movie) {
-    notFound();
-  }
+    return (
+      <main className="min-h-screen bg-[#07080c] text-white">
+        <CustomerHeader />
 
-  const currentMovie = movie;
-
-  const selectedCinema =
-    availableCinemas.find(
-      (cinema) =>
-        cinema.id ===
-        selectedCinemaId,
-    );
-
-  const selectedShowtime =
-    availableShowtimes.find(
-      (showtime) =>
-        showtime.id ===
-        selectedShowtimeId,
-    );
-
-  const canBookMovie =
-    currentMovie.status ===
-    "now-showing";
-
-  function handleDateSelect(
-    dateValue: string,
-  ) {
-    setSelectedDate(dateValue);
-    setSelectedCinemaId("");
-    setSelectedShowtimeId("");
-  }
-
-  function handleCinemaSelect(
-    cinemaId: string,
-  ) {
-    setSelectedCinemaId(cinemaId);
-    setSelectedShowtimeId("");
-  }
-
-  function handleNext() {
-    if (
-      !selectedDate ||
-      !selectedCinema ||
-      !selectedShowtime
-    ) {
-      return;
-    }
-
-    const bookingData = {
-      movieId: currentMovie.id,
-      movieTitle: currentMovie.title,
-      moviePoster: currentMovie.poster,
-
-      date: selectedDate,
-
-      cinemaId: selectedCinema.id,
-      cinemaName: selectedCinema.name,
-      cinemaLocation: `${selectedCinema.location}, ${selectedCinema.city}`,
-
-      showtimeId: selectedShowtime.id,
-      startTime:
-        selectedShowtime.startTime,
-      endTime:
-        selectedShowtime.endTime,
-      price: selectedShowtime.price,
-      auditorium:
-        selectedShowtime.auditorium,
-    };
-
-    localStorage.setItem(
-      "cinetix-booking",
-      JSON.stringify(bookingData),
-    );
-
-    router.push(
-      `/booking/${selectedShowtime.id}/seats`,
+        <div className="mx-auto max-w-3xl px-5 py-16">
+          <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-8 text-center text-red-300">
+            {error ||
+              "Movie was not found."}
+          </div>
+        </div>
+      </main>
     );
   }
 
   return (
-    <main className="movie-details-page">
-      <section className="movie-details-layout">
-        <div className="movie-details-poster">
-          <Image
-            src={currentMovie.poster}
-            alt={`${currentMovie.title} movie poster`}
-            width={500}
-            height={715}
-            priority
-            sizes="(max-width: 760px) 90vw, 380px"
-            className="movie-details-poster__image"
+    <main className="min-h-screen bg-[#07080c] text-white">
+      <CustomerHeader />
+
+      <section className="relative isolate overflow-hidden border-b border-white/10">
+        {movie.backdropUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={
+              movie.backdropUrl
+            }
+            alt=""
+            className="absolute inset-0 -z-30 h-full w-full object-cover"
           />
-        </div>
+        )}
 
-        <div className="movie-details-content">
-          <div className="movie-details-intro">
-            <p className="section-eyebrow">
-              {currentMovie.status ===
-              "coming-soon"
-                ? "Coming Soon"
-                : currentMovie.status ===
-                    "recent"
-                  ? "Recent Release"
-                  : "Now Showing"}
-            </p>
+        <div className="absolute inset-0 -z-20 bg-[#07080c]/60" />
 
-            <h1>
-              {currentMovie.title}
-            </h1>
+        <div className="absolute inset-0 -z-10 bg-gradient-to-r from-[#07080c] via-[#07080c]/90 to-[#07080c]/50" />
 
-            <p className="movie-details-meta">
-              {currentMovie.genre} |{" "}
-              {currentMovie.duration} |{" "}
-              {currentMovie.language} |{" "}
-              {
-                currentMovie.certification
-              }
-            </p>
+        <div className="absolute inset-0 -z-10 bg-gradient-to-t from-[#07080c] to-transparent" />
 
-            <p className="movie-details-description">
-              {
-                currentMovie.description
-              }
-            </p>
+        <div className="mx-auto max-w-7xl px-5 py-12">
+          <Link
+            href="/movies"
+            className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-4 text-sm font-bold text-white/70 backdrop-blur hover:bg-white/10"
+          >
+            <ArrowLeft
+              size={17}
+            />
 
-            {currentMovie.director && (
-              <p className="movie-details-credit">
-                <strong>
-                  Director:
-                </strong>{" "}
-                {
-                  currentMovie.director
-                }
-              </p>
-            )}
+            Back to movies
+          </Link>
 
-            {currentMovie.cast &&
-              currentMovie.cast.length >
-                0 && (
-                <p className="movie-details-credit">
-                  <strong>
-                    Cast:
-                  </strong>{" "}
-                  {currentMovie.cast.join(
-                    ", ",
-                  )}
-                </p>
+          <div className="mt-8 grid gap-8 md:grid-cols-[240px_1fr] lg:grid-cols-[280px_1fr]">
+            <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/5">
+              {movie.posterUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={
+                    movie.posterUrl
+                  }
+                  alt={`${movie.title} poster`}
+                  className="aspect-[2/3] h-full w-full object-cover"
+                />
+              ) : (
+                <div className="flex aspect-[2/3] items-center justify-center text-white/25">
+                  Poster unavailable
+                </div>
               )}
-          </div>
+            </div>
 
-          {canBookMovie ? (
-            <div className="movie-booking-panel">
-              <div className="booking-group">
-                <h2>Select Date</h2>
+            <div className="self-end">
+              <p className="text-sm font-bold uppercase tracking-[0.22em] text-red-400">
+                {movie.status ===
+                "now_showing"
+                  ? "Now Showing"
+                  : "Coming Soon"}
+              </p>
 
-                {dateOptions.length >
-                0 ? (
-                  <div className="date-options">
-                    {dateOptions.map(
-                      (date) => {
-                        const isSelected =
-                          selectedDate ===
-                          date.value;
+              <h1 className="mt-3 text-4xl font-black md:text-6xl">
+                {movie.title}
+              </h1>
 
-                        return (
-                          <button
-                            key={
-                              date.value
-                            }
-                            type="button"
-                            className={`date-card ${
-                              isSelected
-                                ? "is-selected"
-                                : ""
-                            }`}
-                            aria-pressed={
-                              isSelected
-                            }
-                            onClick={() =>
-                              handleDateSelect(
-                                date.value,
-                              )
-                            }
-                          >
-                            <span className="date-card__month">
-                              {
-                                date.monthName
-                              }
-                            </span>
+              <div className="mt-5 flex flex-wrap gap-3 text-sm text-white/60">
+                <span className="inline-flex min-h-10 items-center gap-2 rounded-full bg-white/10 px-4">
+                  <Clock3
+                    size={16}
+                  />
 
-                            <span className="date-card__number">
-                              {
-                                date.dayNumber
-                              }
-                            </span>
+                  {movie.duration} min
+                </span>
 
-                            <span className="date-card__day">
-                              {
-                                date.dayName
-                              }
-                            </span>
-                          </button>
-                        );
-                      },
-                    )}
-                  </div>
-                ) : (
-                  <p className="no-showtimes">
-                    No booking dates are
-                    currently available.
-                  </p>
-                )}
+                <span className="inline-flex min-h-10 items-center gap-2 rounded-full bg-white/10 px-4">
+                  <Languages
+                    size={16}
+                  />
+
+                  {movie.language ||
+                    "Not specified"}
+                </span>
+
+                <span className="inline-flex min-h-10 items-center gap-2 rounded-full bg-white/10 px-4">
+                  <Star
+                    size={16}
+                    className="text-amber-400"
+                  />
+
+                  {movie.rating ||
+                    "Not rated"}
+                </span>
               </div>
+
+              <p className="mt-6 max-w-3xl text-base leading-8 text-white/60">
+                {movie.synopsis ||
+                  movie.description ||
+                  "Movie synopsis is not available."}
+              </p>
+
+              {movie.trailerUrl && (
+                <a
+                  href={
+                    movie.trailerUrl
+                  }
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-7 inline-flex min-h-12 items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-5 font-bold hover:bg-white/10"
+                >
+                  <Play
+                    size={18}
+                  />
+
+                  Watch Trailer
+                </a>
+              )}
             </div>
-          ) : (
-            <div className="coming-soon-box">
-              {currentMovie.status ===
-              "coming-soon"
-                ? "Booking will open closer to the release date."
-                : "This movie is not currently available for booking."}
-            </div>
-          )}
+          </div>
         </div>
       </section>
 
-      {canBookMovie && (
-        <section className="movie-selection-section">
-          <div className="booking-group">
-            <h2>Cinema Hall</h2>
+      <section className="mx-auto max-w-7xl px-5 py-14">
+        <div>
+          <p className="text-sm font-bold uppercase tracking-[0.22em] text-red-500">
+            Choose a show
+          </p>
 
-            {availableCinemas.length >
-            0 ? (
-              <div className="cinema-options">
-                {availableCinemas.map(
-                  (cinema) => {
-                    const isSelected =
-                      selectedCinemaId ===
-                      cinema.id;
+          <h2 className="mt-2 text-3xl font-black">
+            Dates and showtimes
+          </h2>
 
-                    return (
-                      <button
-                        key={cinema.id}
-                        type="button"
-                        className={`cinema-option ${
-                          isSelected
-                            ? "is-selected"
-                            : ""
-                        }`}
-                        aria-pressed={
-                          isSelected
-                        }
-                        onClick={() =>
-                          handleCinemaSelect(
-                            cinema.id,
-                          )
-                        }
-                      >
-                        <strong>
-                          {cinema.name}
-                        </strong>
+          <p className="mt-2 text-white/45">
+            Select a date first, then
+            choose a cinema and time.
+          </p>
+        </div>
 
-                        <span>
-                          {
-                            cinema.location
-                          }
-                          , {cinema.city}
-                        </span>
-                      </button>
-                    );
-                  },
-                )}
-              </div>
-            ) : (
-              <p className="no-showtimes">
-                No cinemas are available
-                for the selected date.
-              </p>
+        <div
+          className="mt-7 flex gap-3 overflow-x-auto pb-2"
+          aria-label="Showtime date selector"
+        >
+          {dateOptions.map(
+            (option) => {
+              const active =
+                selectedDate ===
+                option.value;
+
+              return (
+                <button
+                  key={
+                    option.value
+                  }
+                  type="button"
+                  onClick={() =>
+                    setSelectedDate(
+                      option.value,
+                    )
+                  }
+                  className={`min-h-[88px] min-w-[82px] rounded-2xl border px-4 text-center transition ${
+                    active
+                      ? "border-red-500 bg-red-600 text-white shadow-lg shadow-red-600/20"
+                      : "border-white/10 bg-[#11141c] text-white/55 hover:bg-white/10"
+                  }`}
+                  aria-pressed={
+                    active
+                  }
+                >
+                  <span className="block text-xs uppercase">
+                    {
+                      option.weekday
+                    }
+                  </span>
+
+                  <span className="mt-1 block text-2xl font-black">
+                    {
+                      option.day
+                    }
+                  </span>
+
+                  <span className="block text-xs">
+                    {
+                      option.month
+                    }
+                  </span>
+                </button>
+              );
+            },
+          )}
+        </div>
+
+        {error && (
+          <div className="mt-6 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-red-300">
+            {error}
+          </div>
+        )}
+
+        {loading ? (
+          <div className="mt-8 rounded-2xl border border-white/10 bg-[#11141c] p-10 text-center text-white/45">
+            Loading showtimes...
+          </div>
+        ) : groupedShowtimes.length ===
+          0 ? (
+          <div className="mt-8 rounded-2xl border border-white/10 bg-[#11141c] p-10 text-center">
+            <CalendarDays
+              size={38}
+              className="mx-auto text-white/20"
+            />
+
+            <h3 className="mt-4 text-xl font-bold">
+              No shows on this date
+            </h3>
+
+            <p className="mt-2 text-white/45">
+              Try another date from the
+              selector above.
+            </p>
+          </div>
+        ) : (
+          <div className="mt-8 space-y-5">
+            {groupedShowtimes.map(
+              (cinemaShows) => {
+                const firstShow =
+                  cinemaShows[0];
+
+                const cinemaKey =
+                  typeof firstShow.cinemaId ===
+                  "string"
+                    ? firstShow.cinemaId
+                    : firstShow.cinemaId.id;
+
+                return (
+                  <article
+                    key={cinemaKey}
+                    className="rounded-2xl border border-white/10 bg-[#11141c] p-6"
+                  >
+                    <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+                      <div>
+                        <h3 className="text-xl font-black">
+                          {objectName(
+                            firstShow.cinemaId,
+                          )}
+                        </h3>
+
+                        {objectCity(
+                          firstShow.cinemaId,
+                        ) && (
+                          <p className="mt-2 flex items-center gap-2 text-sm text-white/45">
+                            <MapPin
+                              size={15}
+                            />
+
+                            {objectCity(
+                              firstShow.cinemaId,
+                            )}
+                          </p>
+                        )}
+                      </div>
+
+                      <p className="text-sm text-white/40">
+                        From NPR{" "}
+                        {Math.min(
+                          ...cinemaShows.map(
+                            (show) =>
+                              show.regularPrice,
+                          ),
+                        )}
+                      </p>
+                    </div>
+
+                    <div className="mt-5 flex flex-wrap gap-3">
+                      {cinemaShows
+                        .sort(
+                          (
+                            first,
+                            second,
+                          ) =>
+                            new Date(
+                              first.startsAt,
+                            ).getTime() -
+                            new Date(
+                              second.startsAt,
+                            ).getTime(),
+                        )
+                        .map(
+                          (
+                            showtime,
+                          ) => (
+                            <Link
+                              key={
+                                showtime.id
+                              }
+                              href={`/booking/${showtime.id}`}
+                              className="inline-flex min-h-12 min-w-[116px] flex-col items-center justify-center rounded-xl border border-white/10 bg-[#090b10] px-4 text-center transition hover:border-red-500 hover:bg-red-600"
+                            >
+                              <span className="font-black">
+                                {new Date(
+                                  showtime.startsAt,
+                                ).toLocaleTimeString(
+                                  "en-US",
+                                  {
+                                    hour:
+                                      "numeric",
+
+                                    minute:
+                                      "2-digit",
+                                  },
+                                )}
+                              </span>
+
+                              <span className="mt-1 text-[11px] text-white/45">
+                                {objectName(
+                                  showtime.screenId,
+                                )}
+                              </span>
+                            </Link>
+                          ),
+                        )}
+                    </div>
+                  </article>
+                );
+              },
             )}
           </div>
-
-          <div className="booking-group">
-            <h2>
-              Select Show Time
-            </h2>
-
-            {availableShowtimes.length >
-            0 ? (
-              <div className="showtime-options">
-                {availableShowtimes.map(
-                  (showtime) => {
-                    const isSelected =
-                      selectedShowtimeId ===
-                      showtime.id;
-
-                    return (
-                      <button
-                        key={showtime.id}
-                        type="button"
-                        className={`showtime-option ${
-                          isSelected
-                            ? "is-selected"
-                            : ""
-                        }`}
-                        aria-pressed={
-                          isSelected
-                        }
-                        onClick={() =>
-                          setSelectedShowtimeId(
-                            showtime.id,
-                          )
-                        }
-                      >
-                        {
-                          showtime.startTime
-                        }{" "}
-                        –{" "}
-                        {
-                          showtime.endTime
-                        }
-                      </button>
-                    );
-                  },
-                )}
-              </div>
-            ) : (
-              <p className="no-showtimes">
-                Select a cinema with an
-                available showtime.
-              </p>
-            )}
-          </div>
-
-          <button
-            type="button"
-            className="movie-next-button"
-            disabled={
-              !selectedShowtime
-            }
-            onClick={handleNext}
-          >
-            Next
-          </button>
-        </section>
-      )}
+        )}
+      </section>
     </main>
   );
 }

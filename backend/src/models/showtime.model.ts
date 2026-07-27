@@ -1,99 +1,156 @@
-import mongoose, { Document, Schema } from "mongoose";
+import mongoose, {
+  Document,
+  Model,
+  Schema,
+} from "mongoose";
 
-export type SeatStatus = "available" | "reserved" | "booked";
+export type ShowtimeStatus =
+  | "scheduled"
+  | "cancelled"
+  | "completed";
 
-export interface ISeat {
-  seatNumber: string;
-  status: SeatStatus;
-}
+export interface IShowtime
+  extends Document {
+  _id: mongoose.Types.ObjectId;
 
-export interface IShowtime extends Document {
   movieId: mongoose.Types.ObjectId;
   cinemaId: mongoose.Types.ObjectId;
+  screenId: mongoose.Types.ObjectId;
 
-  hall: string;
+  startsAt: Date;
+  endsAt: Date;
 
-  date: Date;
-  time: string;
+  regularPrice: number;
+  premiumPrice: number;
+  reclinerPrice: number;
 
-  language: string;
+  cleanupMinutes: number;
 
-  price: number;
-
-  seats: ISeat[];
+  status: ShowtimeStatus;
+  isActive: boolean;
 
   createdAt: Date;
   updatedAt: Date;
 }
 
-const SeatSchema = new Schema<ISeat>(
-  {
-    seatNumber: {
-      type: String,
-      required: true,
-    },
+const ShowtimeSchema =
+  new Schema<IShowtime>(
+    {
+      movieId: {
+        type: Schema.Types.ObjectId,
+        ref: "Movie",
+        required: true,
+        index: true,
+      },
 
-    status: {
-      type: String,
-      enum: ["available", "reserved", "booked"],
-      default: "available",
-    },
-  },
-  {
-    _id: false,
-  }
-);
+      cinemaId: {
+        type: Schema.Types.ObjectId,
+        ref: "Cinema",
+        required: true,
+        index: true,
+      },
 
-const ShowtimeSchema = new Schema<IShowtime>(
-  {
-    movieId: {
-      type: Schema.Types.ObjectId,
-      ref: "Movie",
-      required: true,
-    },
+      screenId: {
+        type: Schema.Types.ObjectId,
+        ref: "Screen",
+        required: true,
+        index: true,
+      },
 
-    cinemaId: {
-      type: Schema.Types.ObjectId,
-      ref: "Cinema",
-      required: true,
-    },
+      startsAt: {
+        type: Date,
+        required: true,
+        index: true,
+      },
 
-    hall: {
-      type: String,
-      required: true,
-    },
+      endsAt: {
+        type: Date,
+        required: true,
+        index: true,
+      },
 
-    date: {
-      type: Date,
-      required: true,
-    },
+      regularPrice: {
+        type: Number,
+        required: true,
+        min: 0,
+      },
 
-    time: {
-      type: String,
-      required: true,
-    },
+      premiumPrice: {
+        type: Number,
+        required: true,
+        min: 0,
+      },
 
-    language: {
-      type: String,
-      default: "English",
-    },
+      reclinerPrice: {
+        type: Number,
+        required: true,
+        min: 0,
+      },
 
-    price: {
-      type: Number,
-      required: true,
-      min: 0,
-    },
+      cleanupMinutes: {
+        type: Number,
+        default: 20,
+        min: 0,
+        max: 120,
+      },
 
-    seats: {
-      type: [SeatSchema],
-      default: [],
-    },
-  },
-  {
-    timestamps: true,
-  }
-);
+      status: {
+        type: String,
+        enum: [
+          "scheduled",
+          "cancelled",
+          "completed",
+        ],
+        default: "scheduled",
+        index: true,
+      },
 
-export const ShowtimeModel =
-  mongoose.models.Showtime ||
-  mongoose.model<IShowtime>("Showtime", ShowtimeSchema);
+      isActive: {
+        type: Boolean,
+        default: true,
+        index: true,
+      },
+    },
+    {
+      timestamps: true,
+
+      toJSON: {
+        transform(
+          _document,
+          returnedObject,
+        ) {
+          const safeObject =
+            returnedObject as Record<
+              string,
+              unknown
+            >;
+
+          safeObject.id =
+            safeObject._id?.toString();
+
+          delete safeObject._id;
+          delete safeObject.__v;
+
+          return safeObject;
+        },
+      },
+    },
+  );
+
+ShowtimeSchema.index({
+  screenId: 1,
+  startsAt: 1,
+});
+
+ShowtimeSchema.index({
+  movieId: 1,
+  startsAt: 1,
+});
+
+export const ShowtimeModel:
+  Model<IShowtime> =
+    mongoose.models.Showtime ||
+    mongoose.model<IShowtime>(
+      "Showtime",
+      ShowtimeSchema,
+    );

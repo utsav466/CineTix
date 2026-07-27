@@ -1,5 +1,5 @@
 import MovieCard from "@/components/movies/MovieCard";
-import { nowShowingMovies } from "@/lib/api/cinetix";
+import { nowShowingMovies } from "@/lib/api";
 
 export default function NowShowing() {
   return (

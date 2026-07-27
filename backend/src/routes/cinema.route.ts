@@ -1,42 +1,65 @@
-import { Router } from "express";
 import {
-  listCinemas,
-  getCinema,
+  Router,
+} from "express";
+
+import {
   adminCreateCinema,
-  adminUpdateCinema,
   adminDeleteCinema,
+  adminUpdateCinema,
+  getCinema,
+  listCinemas,
 } from "../controllers/cinema.controller";
 
-import { requireAuth } from "../middlewares/auth.middlewares";
-import { requireAdmin } from "../middlewares/admin.middleware";
+import {
+  requireAdmin,
+} from "../middlewares/admin.middleware";
 
-const router = Router();
+import {
+  requireAuth,
+} from "../middlewares/auth.middlewares";
 
-/* -------------------------------- */
-/* Public Routes                    */
-/* -------------------------------- */
+import {
+  cinemaImageUpload,
+} from "../middlewares/upload.middleware";
 
-router.get("/", listCinemas);
-router.get("/:id", getCinema);
+const router =
+  Router();
 
-/* -------------------------------- */
-/* Admin Routes                     */
-/* -------------------------------- */
+router.get(
+  "/",
+  listCinemas,
+);
 
-router.post("/", requireAuth, requireAdmin, adminCreateCinema);
+router.get(
+  "/:id",
+  getCinema,
+);
+
+router.post(
+  "/",
+  requireAuth,
+  requireAdmin,
+  cinemaImageUpload.single(
+    "image",
+  ),
+  adminCreateCinema,
+);
 
 router.patch(
   "/:id",
   requireAuth,
   requireAdmin,
-  adminUpdateCinema
+  cinemaImageUpload.single(
+    "image",
+  ),
+  adminUpdateCinema,
 );
 
 router.delete(
   "/:id",
   requireAuth,
   requireAdmin,
-  adminDeleteCinema
+  adminDeleteCinema,
 );
 
 export default router;

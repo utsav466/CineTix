@@ -1,17 +1,58 @@
 import mongoose from "mongoose";
-import { MONGODB_URI } from "../config";
+import { env } from "../config";
 
-export async function connectDB() {
+let databaseConnected = false;
+
+export async function connectDB(): Promise<void> {
+  if (databaseConnected) {
+    return;
+  }
+
   try {
-    console.log("Connecting to MongoDB with URI:", MONGODB_URI);
+    mongoose.set("strictQuery", true);
 
-    await mongoose.connect(MONGODB_URI, {
-      serverSelectionTimeoutMS: 5000, // wait up to 5s
+    await mongoose.connect(env.mongodbUri, {
+      serverSelectionTimeoutMS: 10_000,
+      connectTimeoutMS: 10_000,
     });
 
-    console.log("✅ Connected to MongoDB Atlas");
-  } catch (error: any) {
-    console.error("❌ Database connection error:", error.message);
-    process.exit(1);
+    databaseConnected = true;
+
+    const databaseName =
+      mongoose.connection.name || "unknown database";
+
+    console.log(`✅ MongoDB connected: ${databaseName}`);
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Unknown MongoDB connection error";
+
+    console.error(`❌ MongoDB connection failed: ${message}`);
+
+    throw error;
   }
 }
+
+export async function disconnectDB(): Promise<void> {
+  if (!databaseConnected) {
+    return;
+  }
+
+  await mongoose.disconnect();
+  databaseConnected = false;
+
+  console.log("MongoDB disconnected");
+}
+
+mongoose.connection.on("error", (error) => {
+  console.error("MongoDB runtime error:", error);
+});
+
+mongoose.connection.on("disconnected", () => {
+  databaseConnected = false;
+
+  if (!env.isTest) {
+    console.warn("MongoDB connection lost");
+  }
+});

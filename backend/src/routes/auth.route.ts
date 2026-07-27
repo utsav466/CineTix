@@ -1,39 +1,40 @@
-import { Router } from "express";
-import { AuthController } from "../controllers/auth.controller";
+import {
+  Router,
+} from "express";
 
-const authController = new AuthController();
-const router = Router();
+import {
+  getMe,
+  login,
+  logout,
+  register,
+} from "../controllers/auth.controller";
 
-// Registration
-router.post("/register", (req, res) => authController.register(req, res));
+import {
+  requireAuth,
+} from "../middlewares/auth.middlewares";
 
-// Login
-router.post("/login", (req, res) => authController.login(req, res));
+const router =
+  Router();
 
-// Forgot Password
-router.post("/forgot-password", (req, res) =>
-  authController.forgotPassword(req, res)
+router.post(
+  "/register",
+  register,
 );
 
-// Reset Password
-router.post("/reset-password", (req, res) =>
-  authController.resetPassword(req, res)
+router.post(
+  "/login",
+  login,
 );
 
-// Logout (example placeholder)
-router.post("/logout", (req, res) => {
-  return res.status(200).json({
-    success: true,
-    message: "Logout successful",
-  });
-});
+router.get(
+  "/me",
+  requireAuth,
+  getMe,
+);
 
-// Refresh token (optional)
-router.post("/refresh", (req, res) => {
-  return res.status(200).json({
-    success: true,
-    message: "Token refreshed",
-  });
-});
+router.post(
+  "/logout",
+  logout,
+);
 
 export default router;

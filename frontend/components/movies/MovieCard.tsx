@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import type { Movie } from "@/lib/api/cinetix";
+import type { Movie } from "@/lib/api";
 
 type MovieCardProps = {
   movie: Movie;
