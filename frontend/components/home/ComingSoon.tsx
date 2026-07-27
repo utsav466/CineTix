@@ -1,5 +1,5 @@
 import MovieCard from "@/components/movies/MovieCard";
-import { comingSoonMovies } from "@/lib/api/cinetix";
+import { comingSoonMovies } from "@/lib/api";
 
 export default function ComingSoon() {
   if (comingSoonMovies.length === 0) {

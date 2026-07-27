@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { featuredMovie } from "@/lib/api/cinetix";
+import { featuredMovie } from "@/lib/api";
 
 export default function Hero() {
   return (
