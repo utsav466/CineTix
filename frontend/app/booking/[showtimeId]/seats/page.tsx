@@ -14,7 +14,7 @@ import {
   seats,
   type FoodAddOn,
   type Seat,
-} from "@/lib/api/cinetix";
+} from "@/lib/api";
 
 type FoodQuantities = Record<
   string,
