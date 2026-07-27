@@ -1,111 +1,379 @@
-import { Request, Response } from "express";
-import { MovieService } from "../services/movie.service";
+import {
+  NextFunction,
+  Request,
+  Response,
+} from "express";
 
-const service = new MovieService();
+import {
+  CreateMovieSchema,
+  UpdateMovieSchema,
+} from "../dtos/movie.dto";
 
-/* Public */
+import {
+  HttpError,
+} from "../errors/http-error";
 
-export async function listPublicMovies(req: Request, res: Response) {
-  const data = await service.listMovies({
-    search: String(req.query.search || ""),
-    genre: req.query.genre ? String(req.query.genre) : undefined,
-    status: "now_showing",
-    page: Number(req.query.page || 1),
-    limit: Number(req.query.limit || 10),
-  });
+import {
+  MovieStatus,
+} from "../models/movie.model";
 
-  return res.json({
-    success: true,
-    ...data,
-  });
-}
+import {
+  MovieService,
+} from "../services/movie.service";
 
-export async function getPublicMovie(req: Request, res: Response) {
-  const movie = await service.getMovieById(req.params.id);
+import {
+  createPublicUploadUrl,
+  deleteUploadedFile,
+  getUploadedFile,
+  parseMultipartBody,
+} from "../utils/media";
 
-  if (!movie) {
-    return res.status(404).json({
-      success: false,
-      message: "Movie not found",
-    });
+const movieService =
+  new MovieService();
+
+function parseBoolean(
+  value: unknown,
+): boolean | undefined {
+  if (value === "true") {
+    return true;
   }
 
-  return res.json({
-    success: true,
-    movie,
-  });
-}
-
-/* Admin */
-
-export async function adminListMovies(req: Request, res: Response) {
-  const data = await service.listMovies({
-    search: String(req.query.search || ""),
-    genre: req.query.genre ? String(req.query.genre) : undefined,
-    status: req.query.status as any,
-    page: Number(req.query.page || 1),
-    limit: Number(req.query.limit || 10),
-  });
-
-  return res.json({
-    success: true,
-    ...data,
-  });
-}
-
-export async function adminCreateMovie(req: Request, res: Response) {
-  const movie = await service.createMovie(req.body);
-
-  return res.status(201).json({
-    success: true,
-    movie,
-  });
-}
-
-export async function adminGetMovie(req: Request, res: Response) {
-  const movie = await service.getMovieById(req.params.id);
-
-  if (!movie) {
-    return res.status(404).json({
-      success: false,
-      message: "Movie not found",
-    });
+  if (value === "false") {
+    return false;
   }
 
-  return res.json({
-    success: true,
-    movie,
-  });
+  return undefined;
 }
 
-export async function adminUpdateMovie(req: Request, res: Response) {
-  const movie = await service.updateMovie(req.params.id, req.body);
+export async function listMovies(
+  request: Request,
+  response: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const result =
+      await movieService.listMovies({
+        search:
+          request.query.search as
+            | string
+            | undefined,
 
-  if (!movie) {
-    return res.status(404).json({
-      success: false,
-      message: "Movie not found",
+        genre:
+          request.query.genre as
+            | string
+            | undefined,
+
+        language:
+          request.query.language as
+            | string
+            | undefined,
+
+        status:
+          request.query.status as
+            | MovieStatus
+            | undefined,
+
+        featured:
+          parseBoolean(
+            request.query.featured,
+          ),
+
+        page:
+          Number(
+            request.query.page ||
+              1,
+          ),
+
+        limit:
+          Number(
+            request.query.limit ||
+              12,
+          ),
+      });
+
+    response.status(200).json({
+      success: true,
+      data: result,
     });
+  } catch (error) {
+    next(error);
   }
-
-  return res.json({
-    success: true,
-    movie,
-  });
 }
 
-export async function adminDeleteMovie(req: Request, res: Response) {
-  const movie = await service.deleteMovie(req.params.id);
+export async function getMovie(
+  request: Request,
+  response: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const movie =
+      await movieService.getMovieById(
+        request.params.id,
+      );
 
-  if (!movie) {
-    return res.status(404).json({
-      success: false,
-      message: "Movie not found",
+    response.status(200).json({
+      success: true,
+
+      data: {
+        movie,
+      },
     });
+  } catch (error) {
+    next(error);
   }
+}
 
-  return res.json({
-    success: true,
-    message: "Movie deleted",
-  });
+export async function adminListMovies(
+  request: Request,
+  response: Response,
+  next: NextFunction,
+): Promise<void> {
+  return listMovies(
+    request,
+    response,
+    next,
+  );
+}
+
+export async function adminGetMovie(
+  request: Request,
+  response: Response,
+  next: NextFunction,
+): Promise<void> {
+  return getMovie(
+    request,
+    response,
+    next,
+  );
+}
+
+export async function adminCreateMovie(
+  request: Request,
+  response: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const posterImage =
+      getUploadedFile(
+        request,
+        "posterImage",
+      );
+
+    const bannerImage =
+      getUploadedFile(
+        request,
+        "bannerImage",
+      );
+
+    if (!posterImage) {
+      throw new HttpError(
+        400,
+        "A movie poster image is required.",
+      );
+    }
+
+    const body =
+      parseMultipartBody(
+        request.body,
+        {
+          arrayFields: [
+            "genre",
+            "cast",
+          ],
+
+          booleanFields: [
+            "featured",
+          ],
+        },
+      );
+
+    const parsedData =
+      CreateMovieSchema.parse({
+        ...body,
+
+        posterUrl:
+          createPublicUploadUrl(
+            posterImage,
+          ),
+
+        bannerUrl:
+          bannerImage
+            ? createPublicUploadUrl(
+                bannerImage,
+              )
+            : "",
+      });
+
+    const movie =
+      await movieService.createMovie(
+        parsedData,
+      );
+
+    response.status(201).json({
+      success: true,
+      message:
+        "Movie created successfully",
+
+      data: {
+        movie,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function adminUpdateMovie(
+  request: Request,
+  response: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const previousMovie =
+      await movieService.getMovieById(
+        request.params.id,
+      );
+
+    const posterImage =
+      getUploadedFile(
+        request,
+        "posterImage",
+      );
+
+    const bannerImage =
+      getUploadedFile(
+        request,
+        "bannerImage",
+      );
+
+    const body =
+      parseMultipartBody(
+        request.body,
+        {
+          arrayFields: [
+            "genre",
+            "cast",
+          ],
+
+          booleanFields: [
+            "featured",
+            "removePoster",
+            "removeBanner",
+          ],
+        },
+      );
+
+    const parsedData =
+      UpdateMovieSchema.parse(
+        body,
+      );
+
+    if (posterImage) {
+      parsedData.posterUrl =
+        createPublicUploadUrl(
+          posterImage,
+        );
+    } else if (
+      body.removePoster === true
+    ) {
+      parsedData.posterUrl = "";
+    }
+
+    if (bannerImage) {
+      parsedData.bannerUrl =
+        createPublicUploadUrl(
+          bannerImage,
+        );
+    } else if (
+      body.removeBanner === true
+    ) {
+      parsedData.bannerUrl = "";
+    }
+
+    const movie =
+      await movieService.updateMovie(
+        request.params.id,
+        parsedData,
+      );
+
+    if (
+      posterImage ||
+      body.removePoster === true
+    ) {
+      await deleteUploadedFile(
+        previousMovie.posterUrl,
+      );
+    }
+
+    if (
+      bannerImage ||
+      body.removeBanner === true
+    ) {
+      await deleteUploadedFile(
+        previousMovie.bannerUrl,
+      );
+    }
+
+    response.status(200).json({
+      success: true,
+      message:
+        "Movie updated successfully",
+
+      data: {
+        movie,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function adminDeleteMovie(
+  request: Request,
+  response: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const movie =
+      await movieService.deleteMovie(
+        request.params.id,
+      );
+
+    await Promise.all([
+      deleteUploadedFile(
+        movie.posterUrl,
+      ),
+
+      deleteUploadedFile(
+        movie.bannerUrl,
+      ),
+    ]);
+
+    response.status(200).json({
+      success: true,
+      message:
+        "Movie deleted successfully",
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function adminMovieStatistics(
+  _request: Request,
+  response: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const statistics =
+      await movieService
+        .getMovieStatistics();
+
+    response.status(200).json({
+      success: true,
+      data: statistics,
+    });
+  } catch (error) {
+    next(error);
+  }
 }
