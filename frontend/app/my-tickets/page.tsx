@@ -1,203 +1,341 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import {
+  CalendarDays,
+  Clock3,
+  Ticket,
+} from "lucide-react";
 
-type TicketBooking = {
-  id?: string;
-  movieTitle?: string;
-  moviePoster?: string;
-  date?: string;
-  cinemaName?: string;
-  cinemaLocation?: string;
-  startTime?: string;
-  endTime?: string;
-  auditorium?: string;
-  seats?: string[];
-  totalAmount?: number;
-  paymentMethod?: string;
-  status?: string;
-  bookedAt?: string;
-};
+import Link from "next/link";
 
-function formatBookingDate(dateValue?: string) {
-  if (!dateValue) {
-    return "Date unavailable";
+import {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
+import CustomerHeader from "@/components/layout/CustomerHeader";
+
+import {
+  getCustomerBookings,
+} from "@/lib/api/customer.api";
+
+import {
+  getApiErrorMessage,
+} from "@/lib/api/client";
+
+import type {
+  CustomerBooking,
+} from "@/lib/api/customer.types";
+
+function movieTitle(
+  booking: CustomerBooking,
+): string {
+  if (
+    typeof booking.movieId ===
+    "string"
+  ) {
+    return "Movie";
   }
 
-  const date = new Date(`${dateValue}T00:00:00`);
-
-  if (Number.isNaN(date.getTime())) {
-    return dateValue;
-  }
-
-  return new Intl.DateTimeFormat("en-US", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  }).format(date);
+  return booking.movieId.title;
 }
 
-function formatNpr(amount: number) {
-  return new Intl.NumberFormat("en-NP", {
-    style: "currency",
-    currency: "NPR",
-    maximumFractionDigits: 0,
-  }).format(amount);
+function showtimeDate(
+  booking: CustomerBooking,
+): Date | null {
+  if (
+    typeof booking.showtimeId ===
+    "string"
+  ) {
+    return null;
+  }
+
+  return new Date(
+    booking.showtimeId.startsAt,
+  );
 }
 
 export default function MyTicketsPage() {
-  const [tickets, setTickets] = useState<TicketBooking[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [
+    bookings,
+    setBookings,
+  ] =
+    useState<CustomerBooking[]>(
+      [],
+    );
+
+  const [filter, setFilter] =
+    useState("all");
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [error, setError] =
+    useState("");
 
   useEffect(() => {
-    try {
-      const savedTickets = localStorage.getItem(
-        "cinetix-ticket-history",
-      );
-
-      const latestCompletedBooking = localStorage.getItem(
-        "cinetix-completed-booking",
-      );
-
-      const parsedTickets: TicketBooking[] = savedTickets
-        ? JSON.parse(savedTickets)
-        : [];
-
-      if (latestCompletedBooking) {
-        const latestTicket = JSON.parse(
-          latestCompletedBooking,
-        ) as TicketBooking;
-
-        const alreadyExists = parsedTickets.some(
-          (ticket) => ticket.id === latestTicket.id,
+    async function loadBookings() {
+      try {
+        setBookings(
+          await getCustomerBookings(),
         );
-
-        if (!alreadyExists) {
-          parsedTickets.unshift(latestTicket);
-
-          localStorage.setItem(
-            "cinetix-ticket-history",
-            JSON.stringify(parsedTickets),
-          );
-        }
+      } catch (loadError) {
+        setError(
+          getApiErrorMessage(
+            loadError,
+            "Unable to load your bookings. Please log in again.",
+          ),
+        );
+      } finally {
+        setLoading(false);
       }
-
-      setTickets(parsedTickets);
-    } catch (error) {
-      console.error("Unable to load tickets:", error);
-      setTickets([]);
-    } finally {
-      setIsLoading(false);
     }
+
+    void loadBookings();
   }, []);
 
-  if (isLoading) {
-    return (
-      <main className="my-tickets-page">
-        <div className="my-tickets-message">
-          Loading your tickets…
-        </div>
-      </main>
+  const filteredBookings =
+    useMemo(
+      () =>
+        bookings.filter(
+          (booking) =>
+            filter === "all" ||
+            booking.status ===
+              filter,
+        ),
+      [
+        bookings,
+        filter,
+      ],
     );
-  }
 
   return (
-    <main className="my-tickets-page">
-      <section className="my-tickets-container">
-        <div className="my-tickets-heading">
-          <p className="section-eyebrow">Your Bookings</p>
-          <h1>My Tickets</h1>
+    <main className="min-h-screen bg-[#07080c] text-white">
+      <CustomerHeader />
+
+      <section className="mx-auto max-w-5xl px-5 py-12">
+        <p className="text-sm font-bold uppercase tracking-[0.22em] text-red-500">
+          Account
+        </p>
+
+        <h1 className="mt-2 text-4xl font-black md:text-5xl">
+          My Tickets
+        </h1>
+
+        <div className="mt-7 flex gap-2 overflow-x-auto pb-2">
+          {[
+            {
+              value: "all",
+              label: "All",
+            },
+            {
+              value:
+                "confirmed",
+
+              label:
+                "Confirmed",
+            },
+            {
+              value: "held",
+
+              label:
+                "Awaiting Payment",
+            },
+            {
+              value:
+                "cancelled",
+
+              label:
+                "Cancelled",
+            },
+          ].map(
+            (item) => (
+              <button
+                key={
+                  item.value
+                }
+                type="button"
+                onClick={() =>
+                  setFilter(
+                    item.value,
+                  )
+                }
+                className={`min-h-11 whitespace-nowrap rounded-xl px-4 font-bold transition ${
+                  filter ===
+                  item.value
+                    ? "bg-red-600 text-white"
+                    : "border border-white/10 bg-[#11141c] text-white/55 hover:bg-white/10"
+                }`}
+              >
+                {item.label}
+              </button>
+            ),
+          )}
         </div>
 
-        {tickets.length > 0 ? (
-          <div className="my-tickets-grid">
-            {tickets.map((ticket, index) => (
-              <article
-                key={ticket.id ?? `${ticket.movieTitle}-${index}`}
-                className="my-ticket-card"
-              >
-                <div className="my-ticket-card__top">
-                  <div>
-                    <p className="my-ticket-card__eyebrow">
-                      Confirmed Ticket
-                    </p>
+        {error && (
+          <div className="mt-6 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-red-300">
+            {error}
+          </div>
+        )}
 
-                    <h2>{ticket.movieTitle ?? "Movie"}</h2>
-                  </div>
+        {loading ? (
+          <p className="mt-10 text-white/45">
+            Loading bookings...
+          </p>
+        ) : filteredBookings.length ===
+          0 ? (
+          <div className="mt-8 rounded-2xl border border-white/10 bg-[#11141c] p-10 text-center">
+            <Ticket
+              size={44}
+              className="mx-auto text-white/20"
+            />
 
-                  <span className="my-ticket-card__status">
-                    {ticket.status ?? "Confirmed"}
-                  </span>
-                </div>
+            <h2 className="mt-4 text-xl font-black">
+              No matching bookings
+            </h2>
 
-                <div className="my-ticket-card__details">
-                  <div>
-                    <span>Cinema</span>
-                    <strong>
-                      {ticket.cinemaName ?? "Cinema unavailable"}
-                    </strong>
-                  </div>
+            <p className="mt-2 text-white/45">
+              Browse movies and make
+              your first booking.
+            </p>
 
-                  <div>
-                    <span>Date & Time</span>
-                    <strong>
-                      {formatBookingDate(ticket.date)}
-                      {ticket.startTime
-                        ? ` • ${ticket.startTime}`
-                        : ""}
-                    </strong>
-                  </div>
-
-                  <div>
-                    <span>Auditorium</span>
-                    <strong>
-                      {ticket.auditorium ?? "Hall unavailable"}
-                    </strong>
-                  </div>
-
-                  <div>
-                    <span>Seats</span>
-                    <strong>
-                      {ticket.seats?.length
-                        ? ticket.seats.join(", ")
-                        : "No seats"}
-                    </strong>
-                  </div>
-                </div>
-
-                {ticket.cinemaLocation && (
-                  <p className="my-ticket-card__location">
-                    📍 {ticket.cinemaLocation}
-                  </p>
-                )}
-
-                <div className="my-ticket-card__footer">
-                  <div>
-                    <span>Total</span>
-                    <strong>
-                      {formatNpr(ticket.totalAmount ?? 0)}
-                    </strong>
-                  </div>
-
-                  <div>
-                    <span>Order</span>
-                    <strong>{ticket.id ?? "CINETIX"}</strong>
-                  </div>
-                </div>
-              </article>
-            ))}
+            <Link
+              href="/movies"
+              className="mt-6 inline-flex min-h-11 items-center rounded-xl bg-red-600 px-5 font-bold hover:bg-red-500"
+            >
+              Browse Movies
+            </Link>
           </div>
         ) : (
-          <div className="my-tickets-empty">
-            <div className="my-tickets-empty__icon">
-              🎟
-            </div>
+          <div className="mt-8 space-y-4">
+            {filteredBookings.map(
+              (booking) => {
+                const date =
+                  showtimeDate(
+                    booking,
+                  );
 
-            <h2>No tickets yet</h2>
+                return (
+                  <article
+                    key={booking.id}
+                    className="rounded-2xl border border-white/10 bg-[#11141c] p-6"
+                  >
+                    <div className="flex flex-col justify-between gap-6 md:flex-row md:items-center">
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-wider text-red-400">
+                          {
+                            booking.bookingCode
+                          }
+                        </p>
 
-            <p>
-              Your confirmed movie bookings will appear here.
-            </p>
+                        <h2 className="mt-2 text-xl font-black">
+                          {movieTitle(
+                            booking,
+                          )}
+                        </h2>
+
+                        <div className="mt-4 flex flex-wrap gap-4 text-sm text-white/45">
+                          <span className="inline-flex items-center gap-2">
+                            <CalendarDays
+                              size={16}
+                            />
+
+                            {date
+                              ? date.toLocaleDateString(
+                                  "en-US",
+                                  {
+                                    dateStyle:
+                                      "medium",
+                                  },
+                                )
+                              : "Date unavailable"}
+                          </span>
+
+                          <span className="inline-flex items-center gap-2">
+                            <Clock3
+                              size={16}
+                            />
+
+                            {date
+                              ? date.toLocaleTimeString(
+                                  "en-US",
+                                  {
+                                    hour:
+                                      "numeric",
+
+                                    minute:
+                                      "2-digit",
+                                  },
+                                )
+                              : "Time unavailable"}
+                          </span>
+                        </div>
+
+                        <p className="mt-3 text-sm text-white/45">
+                          Seats:{" "}
+                          {booking.seats
+                            .map(
+                              (seat) =>
+                                seat.seatCode,
+                            )
+                            .join(", ")}
+                        </p>
+                      </div>
+
+                      <div className="md:text-right">
+                        <p className="text-xl font-black">
+                          NPR{" "}
+                          {
+                            booking.totalAmount
+                          }
+                        </p>
+
+                        <span
+                          className={`mt-2 inline-block rounded-full px-3 py-1 text-xs font-bold capitalize ${
+                            booking.status ===
+                            "confirmed"
+                              ? "bg-green-500/10 text-green-400"
+                              : booking.status ===
+                                "held"
+                              ? "bg-amber-500/10 text-amber-400"
+                              : "bg-white/5 text-white/45"
+                          }`}
+                        >
+                          {booking.status.replaceAll(
+                            "_",
+                            " ",
+                          )}
+                        </span>
+
+                        <div className="mt-4">
+                          {booking.status ===
+                            "confirmed" && (
+                            <Link
+                              href={`/tickets/${booking.id}`}
+                              className="inline-flex min-h-11 items-center rounded-xl bg-green-600 px-5 font-bold hover:bg-green-500"
+                            >
+                              View Ticket
+                            </Link>
+                          )}
+
+                          {booking.status ===
+                            "held" && (
+                            <Link
+                              href={`/checkout/${booking.id}`}
+                              className="inline-flex min-h-11 items-center rounded-xl bg-red-600 px-5 font-bold hover:bg-red-500"
+                            >
+                              Continue Checkout
+                            </Link>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </article>
+                );
+              },
+            )}
           </div>
         )}
       </section>
