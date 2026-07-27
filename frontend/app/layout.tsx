@@ -1,24 +1,49 @@
-import type { Metadata } from "next";
+import type {
+  Metadata,
+} from "next";
 
-import AppShell from "@/components/layout/AppShell";
+import {
+  Inter,
+} from "next/font/google";
 
 import "./globals.css";
 
-export const metadata: Metadata = {
-  title: "CineTix",
-  description:
-    "Discover movies and book cinema tickets online.",
-};
+import {
+  AuthProvider,
+} from "@/contexts/AuthContext";
+
+const inter =
+  Inter({
+    subsets: [
+      "latin",
+    ],
+  });
+
+export const metadata:
+  Metadata = {
+    title:
+      "CineTix",
+
+    description:
+      "Cinema ticket booking platform",
+  };
 
 export default function RootLayout({
   children,
 }: Readonly<{
-  children: React.ReactNode;
+  children:
+    React.ReactNode;
 }>) {
   return (
     <html lang="en">
-      <body>
-        <AppShell>{children}</AppShell>
+      <body
+        className={
+          inter.className
+        }
+      >
+        <AuthProvider>
+          {children}
+        </AuthProvider>
       </body>
     </html>
   );
