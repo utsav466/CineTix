@@ -12,3 +12,28 @@ media-upload-code.txt
 media-upload-debug.txt
 ticketing-seed-debug.txt
 .DS_Store
+
+# Environment files
+backend/.env
+frontend/.env.local
+
+# Dependencies and builds
+backend/node_modules/
+frontend/node_modules/
+backend/dist/
+frontend/.next/
+
+# Runtime uploads and generated files
+backend/uploads/
+
+# Debug files
+admin-debug.txt
+media-upload-code.txt
+media-upload-debug.txt
+ticketing-seed-debug.txt
+*-debug.txt
+
+# macOS
+.DS_Store
+**/.DS_Store
+cinetix-debug.zip
