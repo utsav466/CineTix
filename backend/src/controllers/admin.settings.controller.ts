@@ -1,57 +1,222 @@
-import { Request, Response } from "express";
-import { SettingsModel } from "../models/settings.model";
+import {
+  NextFunction,
+  Request,
+  Response,
+} from "express";
 
-// GET SETTINGS
-export async function getSettings(_: Request, res: Response) {
+import {
+  SettingsModel,
+} from "../models/settings.model";
+
+import {
+  createPublicUploadUrl,
+  deleteUploadedFile,
+  getUploadedFile,
+  parseMultipartBody,
+} from "../utils/media";
+
+async function loadSettings() {
+  const existing =
+    await SettingsModel.findOne();
+
+  if (existing) {
+    return existing;
+  }
+
+  return SettingsModel.create(
+    {},
+  );
+}
+
+export async function getSettings(
+  _request: Request,
+  response: Response,
+  next: NextFunction,
+): Promise<void> {
   try {
-    let settings = await SettingsModel.findOne();
+    const settings =
+      await loadSettings();
 
-    if (!settings) {
-      settings = await SettingsModel.create({});
-    }
-
-    res.json({
+    response.status(200).json({
       success: true,
       data: settings,
     });
-  } catch (err: any) {
-    res.status(500).json({
-      success: false,
-      message: err.message || "Failed to load settings",
-    });
+  } catch (error) {
+    next(error);
   }
 }
 
-// UPDATE SETTINGS
-export async function updateSettings(req: Request, res: Response) {
+export async function updateSettings(
+  request: Request,
+  response: Response,
+  next: NextFunction,
+): Promise<void> {
   try {
-    const { storeName, supportEmail, currency } = req.body;
+    const settings =
+      await loadSettings();
 
-    let settings = await SettingsModel.findOne();
+    const previousLogo =
+      settings.logoUrl;
 
-    if (!settings) {
-      settings = await SettingsModel.create({
-        storeName,
-        supportEmail,
-        currency,
-      });
-    } else {
-      settings.storeName = storeName;
-      settings.supportEmail = supportEmail;
-      settings.currency = currency;
+    const previousFavicon =
+      settings.faviconUrl;
 
-      await settings.save();
+    const previousHero =
+      settings.heroImageUrl;
+
+    const logoImage =
+      getUploadedFile(
+        request,
+        "logoImage",
+      );
+
+    const faviconImage =
+      getUploadedFile(
+        request,
+        "faviconImage",
+      );
+
+    const heroImage =
+      getUploadedFile(
+        request,
+        "heroImage",
+      );
+
+    const body =
+      parseMultipartBody(
+        request.body,
+        {
+          booleanFields: [
+            "removeLogo",
+            "removeFavicon",
+            "removeHeroImage",
+          ],
+        },
+      );
+
+    if (
+      typeof body.storeName ===
+        "string" &&
+      body.storeName.trim()
+    ) {
+      settings.storeName =
+        body.storeName.trim();
     }
 
-    res.json({
+    if (
+      typeof body.supportEmail ===
+      "string"
+    ) {
+      const email =
+        body.supportEmail
+          .trim()
+          .toLowerCase();
+
+      if (
+        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+          email,
+        )
+      ) {
+        response.status(400).json({
+          success: false,
+          message:
+            "Enter a valid support email address.",
+        });
+
+        return;
+      }
+
+      settings.supportEmail =
+        email;
+    }
+
+    if (
+      body.currency ===
+        "NPR" ||
+      body.currency ===
+        "USD" ||
+      body.currency ===
+        "INR"
+    ) {
+      settings.currency =
+        body.currency;
+    }
+
+    if (logoImage) {
+      settings.logoUrl =
+        createPublicUploadUrl(
+          logoImage,
+        );
+    } else if (
+      body.removeLogo === true
+    ) {
+      settings.logoUrl =
+        "";
+    }
+
+    if (faviconImage) {
+      settings.faviconUrl =
+        createPublicUploadUrl(
+          faviconImage,
+        );
+    } else if (
+      body.removeFavicon === true
+    ) {
+      settings.faviconUrl =
+        "";
+    }
+
+    if (heroImage) {
+      settings.heroImageUrl =
+        createPublicUploadUrl(
+          heroImage,
+        );
+    } else if (
+      body.removeHeroImage ===
+      true
+    ) {
+      settings.heroImageUrl =
+        "";
+    }
+
+    await settings.save();
+
+    if (
+      logoImage ||
+      body.removeLogo === true
+    ) {
+      await deleteUploadedFile(
+        previousLogo,
+      );
+    }
+
+    if (
+      faviconImage ||
+      body.removeFavicon === true
+    ) {
+      await deleteUploadedFile(
+        previousFavicon,
+      );
+    }
+
+    if (
+      heroImage ||
+      body.removeHeroImage ===
+      true
+    ) {
+      await deleteUploadedFile(
+        previousHero,
+      );
+    }
+
+    response.status(200).json({
       success: true,
-      message: "Settings updated",
+      message:
+        "Settings updated successfully",
+
       data: settings,
     });
-  } catch (err: any) {
-    res.status(500).json({
-      success: false,
-      message: err.message || "Failed to update settings",
-    });
+  } catch (error) {
+    next(error);
   }
 }
