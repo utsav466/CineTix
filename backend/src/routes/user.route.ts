@@ -1,31 +1,93 @@
-import { Router } from "express";
-import { UserController } from "../controllers/user.controller";
-import { requireAuth } from "../middlewares/auth.middlewares";
-import { uploadAvatar } from "../services/upload";
+import {
+  Router,
+} from "express";
 
-const router = Router();
-const controller = new UserController();
+import {
+  UserController,
+} from "../controllers/user.controller";
 
-// current user info
-router.get("/me", requireAuth, (req, res) => controller.me(req, res));
-
-// JSON-only update (settings)
-router.patch("/me", requireAuth, (req, res) => controller.updateMe(req, res));
-
-// multipart update (avatar + fields)
-router.put(
-  "/me",
+import {
   requireAuth,
-  uploadAvatar.single("avatar"),
-  (req, res) => controller.updateMe(req, res)
+} from "../middlewares/auth.middlewares";
+
+import {
+  avatarImageUpload,
+} from "../middlewares/upload.middleware";
+
+const router =
+  Router();
+
+const controller =
+  new UserController();
+
+router.use(
+  requireAuth,
 );
 
-// avatar-only
+router.get(
+  "/me",
+  (
+    request,
+    response,
+    next,
+  ) => {
+    void controller.me(
+      request,
+      response,
+      next,
+    );
+  },
+);
+
+router.patch(
+  "/me",
+  (
+    request,
+    response,
+    next,
+  ) => {
+    void controller.updateMe(
+      request,
+      response,
+      next,
+    );
+  },
+);
+
+router.put(
+  "/me",
+  avatarImageUpload.single(
+    "avatar",
+  ),
+  (
+    request,
+    response,
+    next,
+  ) => {
+    void controller.updateMe(
+      request,
+      response,
+      next,
+    );
+  },
+);
+
 router.patch(
   "/me/avatar",
-  requireAuth,
-  uploadAvatar.single("avatar"),
-  (req, res) => controller.updateMyAvatar(req, res)
+  avatarImageUpload.single(
+    "avatar",
+  ),
+  (
+    request,
+    response,
+    next,
+  ) => {
+    void controller.updateMyAvatar(
+      request,
+      response,
+      next,
+    );
+  },
 );
 
 export default router;

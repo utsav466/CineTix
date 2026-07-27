@@ -1,150 +1,384 @@
-import { Response } from "express";
-import { UserModel } from "../models/user.model";
-import { AuthRequest } from "../middlewares/auth.middlewares";
+import {
+  NextFunction,
+  Response,
+} from "express";
 
-const ALLOWED_CURRENCY = ["USD", "NPR", "INR"] as const;
+import { env } from "../config";
+
+import {
+  AuthRequest,
+} from "../middlewares/auth.middlewares";
+
+import User, {
+  PreferredCurrency,
+  UserDocument,
+} from "../models/user.model";
+
+const ALLOWED_CURRENCY:
+  PreferredCurrency[] = [
+    "NPR",
+    "USD",
+    "INR",
+  ];
+
+function currentUserId(
+  request: AuthRequest,
+): string | undefined {
+  return (
+    request.auth?.userId ||
+    request.userId
+  );
+}
+
+function serializeUser(
+  user: UserDocument,
+) {
+  return {
+    id:
+      user._id.toString(),
+
+    fullName:
+      user.fullName,
+
+    name:
+      user.fullName,
+
+    email:
+      user.email,
+
+    username:
+      user.username || "",
+
+    phone:
+      user.phone || "",
+
+    role:
+      user.role,
+
+    preferredCurrency:
+      user.preferredCurrency,
+
+    avatarUrl:
+      user.avatarUrl || "",
+
+    isActive:
+      user.isActive,
+
+    createdAt:
+      user.createdAt,
+
+    updatedAt:
+      user.updatedAt,
+  };
+}
+
+function uploadedAvatarUrl(
+  filename: string,
+): string {
+  return `${env.backendUrl}/uploads/avatars/${filename}`;
+}
 
 export class UserController {
-  
-  async updateMe(req: AuthRequest, res: Response) {
+  async me(
+    request: AuthRequest,
+    response: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
-      if (!req.userId) {
-        return res.status(401).json({ success: false, message: "Unauthorized" });
-      }
+      const userId =
+        currentUserId(
+          request,
+        );
 
-      const updateData: any = {};
-
-      if (typeof req.body.fullName === "string") {
-        const fullName = req.body.fullName.trim();
-        if (!fullName) {
-          return res.status(400).json({ success: false, message: "fullName cannot be empty" });
-        }
-        updateData.fullName = fullName;
-      }
-
-      if (typeof req.body.email === "string") {
-        const email = req.body.email.trim().toLowerCase();
-        if (!/\S+@\S+\.\S+/.test(email)) {
-          return res.status(400).json({ success: false, message: "Invalid email format" });
-        }
-
-   
-        const exists = await UserModel.findOne({
-          email,
-          _id: { $ne: req.userId },
+      if (!userId) {
+        response.status(401).json({
+          success: false,
+          message:
+            "Unauthorized",
         });
 
-        if (exists) {
-          return res.status(409).json({ success: false, message: "Email already in use" });
-        }
-
-        updateData.email = email;
+        return;
       }
 
-      // preferredCurrency
-      if (typeof req.body.preferredCurrency === "string") {
-        const cur = req.body.preferredCurrency.trim().toUpperCase();
-        if (!ALLOWED_CURRENCY.includes(cur as any)) {
-          return res.status(400).json({
+      const user =
+        await User.findById(
+          userId,
+        );
+
+      if (!user) {
+        response.status(404).json({
+          success: false,
+          message:
+            "User not found",
+        });
+
+        return;
+      }
+
+      response.status(200).json({
+        success: true,
+
+        data: {
+          user:
+            serializeUser(
+              user,
+            ),
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async updateMe(
+    request: AuthRequest,
+    response: Response,
+    next: NextFunction,
+  ): Promise<void> {
+    try {
+      const userId =
+        currentUserId(
+          request,
+        );
+
+      if (!userId) {
+        response.status(401).json({
+          success: false,
+          message:
+            "Unauthorized",
+        });
+
+        return;
+      }
+
+      const user =
+        await User.findById(
+          userId,
+        );
+
+      if (!user) {
+        response.status(404).json({
+          success: false,
+          message:
+            "User not found",
+        });
+
+        return;
+      }
+
+      if (
+        typeof request.body
+          .fullName ===
+        "string"
+      ) {
+        const fullName =
+          request.body.fullName.trim();
+
+        if (
+          fullName.length < 2
+        ) {
+          response.status(400).json({
             success: false,
-            message: "Invalid preferredCurrency",
-            allowed: ALLOWED_CURRENCY,
+
+            message:
+              "Full name must contain at least 2 characters.",
           });
+
+          return;
         }
-        updateData.preferredCurrency = cur;
+
+        user.fullName =
+          fullName;
       }
 
+      if (
+        typeof request.body
+          .email ===
+        "string"
+      ) {
+        const email =
+          request.body.email
+            .trim()
+            .toLowerCase();
 
-      if (req.file) {
-        updateData.avatarUrl = `/uploads/avatars/${req.file.filename}`;
+        if (
+          !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+            email,
+          )
+        ) {
+          response.status(400).json({
+            success: false,
+
+            message:
+              "Enter a valid email address.",
+          });
+
+          return;
+        }
+
+        const emailOwner =
+          await User.findOne({
+            email,
+
+            _id: {
+              $ne:
+                user._id,
+            },
+          });
+
+        if (emailOwner) {
+          response.status(409).json({
+            success: false,
+
+            message:
+              "Email is already in use.",
+          });
+
+          return;
+        }
+
+        user.email =
+          email;
       }
 
-  
-      if (Object.keys(updateData).length === 0) {
-        return res.status(400).json({
-          success: false,
-          message: "No valid fields provided to update",
-        });
+      if (
+        typeof request.body
+          .phone ===
+        "string"
+      ) {
+        user.phone =
+          request.body.phone.trim();
       }
 
-      const user = await UserModel.findByIdAndUpdate(req.userId, updateData, {
-        new: true,
-      }).select("-password");
+      if (
+        typeof request.body
+          .preferredCurrency ===
+        "string"
+      ) {
+        const currency =
+          request.body
+            .preferredCurrency
+            .trim()
+            .toUpperCase() as PreferredCurrency;
 
-      if (!user) {
-        return res.status(404).json({ success: false, message: "User not found" });
+        if (
+          !ALLOWED_CURRENCY.includes(
+            currency,
+          )
+        ) {
+          response.status(400).json({
+            success: false,
+
+            message:
+              "Invalid preferred currency.",
+
+            allowed:
+              ALLOWED_CURRENCY,
+          });
+
+          return;
+        }
+
+        user.preferredCurrency =
+          currency;
       }
 
-      return res.status(200).json({
+      if (request.file) {
+        user.avatarUrl =
+          uploadedAvatarUrl(
+            request.file.filename,
+          );
+      }
+
+      await user.save();
+
+      response.status(200).json({
         success: true,
-        message: "Profile updated",
-        data: user,
+
+        message:
+          "Profile updated successfully.",
+
+        data: {
+          user:
+            serializeUser(
+              user,
+            ),
+        },
       });
-    } catch (error: any) {
-      return res.status(500).json({
-        success: false,
-        message: error?.message || "Internal Server Error",
-      });
+    } catch (error) {
+      next(error);
     }
   }
 
-  // ✅ avatar-only (unchanged)
-  async updateMyAvatar(req: AuthRequest, res: Response) {
+  async updateMyAvatar(
+    request: AuthRequest,
+    response: Response,
+    next: NextFunction,
+  ): Promise<void> {
     try {
-      if (!req.userId) {
-        return res.status(401).json({ success: false, message: "Unauthorized" });
-      }
+      const userId =
+        currentUserId(
+          request,
+        );
 
-      if (!req.file) {
-        return res.status(400).json({
+      if (!userId) {
+        response.status(401).json({
           success: false,
-          message: "avatar file is required",
+          message:
+            "Unauthorized",
         });
+
+        return;
       }
 
-      const avatarUrl = `/uploads/avatars/${req.file.filename}`;
+      if (!request.file) {
+        response.status(400).json({
+          success: false,
 
-      const user = await UserModel.findByIdAndUpdate(
-        req.userId,
-        { avatarUrl },
-        { new: true }
-      ).select("-password");
+          message:
+            "An avatar file is required.",
+        });
+
+        return;
+      }
+
+      const user =
+        await User.findById(
+          userId,
+        );
 
       if (!user) {
-        return res.status(404).json({ success: false, message: "User not found" });
+        response.status(404).json({
+          success: false,
+          message:
+            "User not found",
+        });
+
+        return;
       }
 
-      return res.status(200).json({
+      user.avatarUrl =
+        uploadedAvatarUrl(
+          request.file.filename,
+        );
+
+      await user.save();
+
+      response.status(200).json({
         success: true,
-        message: "Avatar updated",
-        data: user,
-      });
-    } catch (error: any) {
-      return res.status(500).json({
-        success: false,
-        message: error?.message || "Internal Server Error",
-      });
-    }
-  }
 
-  // ✅ current user
-  async me(req: AuthRequest, res: Response) {
-    try {
-      if (!req.userId) {
-        return res.status(401).json({ success: false, message: "Unauthorized" });
-      }
+        message:
+          "Avatar updated successfully.",
 
-      const user = await UserModel.findById(req.userId).select("-password");
-      if (!user) {
-        return res.status(404).json({ success: false, message: "User not found" });
-      }
-
-      return res.status(200).json({ success: true, data: user });
-    } catch (error: any) {
-      return res.status(500).json({
-        success: false,
-        message: error?.message || "Internal Server Error",
+        data: {
+          user:
+            serializeUser(
+              user,
+            ),
+        },
       });
+    } catch (error) {
+      next(error);
     }
   }
 }
