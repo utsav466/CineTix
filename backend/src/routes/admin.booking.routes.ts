@@ -1,30 +1,42 @@
-import { Router } from "express";
-
-import { requireAuth } from "../middlewares/auth.middlewares";
-import { requireAdmin } from "../middlewares/admin.middleware";
+import {
+  Router,
+} from "express";
 
 import {
-  adminListBookings,
   adminGetBooking,
+  adminListBookings,
   adminUpdateBookingStatus,
 } from "../controllers/booking.controller";
 
+import {
+  requireAdmin,
+} from "../middlewares/admin.middleware";
 
-const router = Router();
+import {
+  requireAuth,
+} from "../middlewares/auth.middlewares";
 
+const router =
+  Router();
 
-router.use(requireAuth, requireAdmin);
+router.use(
+  requireAuth,
+  requireAdmin,
+);
 
+router.get(
+  "/",
+  adminListBookings,
+);
 
+router.get(
+  "/:id",
+  adminGetBooking,
+);
 
-router.get("/", adminListBookings);
-
-
-router.get("/:id", adminGetBooking);
-
-
-router.patch("/:id/status", adminUpdateBookingStatus);
-
-
+router.patch(
+  "/:id/status",
+  adminUpdateBookingStatus,
+);
 
 export default router;
